@@ -278,36 +278,47 @@ def cmd_setup(args):
 
 
 def _dispatch_tui(skip_prereqs: bool = False):
-    """Launch TUI and execute selected workflow action."""
+    """Launch TUI in an interactive loop. Returns to menu after each selection."""
     from .tui import run_tui_menu
-    opts = run_tui_menu(skip_prereqs=skip_prereqs)
-    act = opts.get("action")
-    if act == "run":
-        class RunArgs:
-            category = ",".join(opts.get("categories", []))
-            no_screenshots = not opts.get("screenshots", True)
-            mock = opts.get("mock", False)
-            unsanitize = opts.get("unsanitize", False)
-            audit_days = opts.get("audit_days", 30)
-            output_dir = opts.get("output_dir", "docs")
-        cmd_run(RunArgs())
-    elif act in ("login_done", "prereqs_done", "logout_done", "setup_done"):
-        return
-    elif act == "setup":
-        cmd_setup(None)
-    elif act == "login":
-        cmd_login(None)
-    elif act == "lint":
-        class LintArgs:
-            directory = "docs"
-        cmd_lint_ste(LintArgs())
-    elif act == "diff":
-        class DiffArgs:
-            output_dir = "docs"
-            mock = False
-        cmd_diff(DiffArgs())
-    elif act in ("exit", "cancel"):
-        print("Operation cancelled.")
+
+    first_run = True
+
+    while True:
+        # Show full prerequisites table on startup; evaluate silently on subsequent menu returns
+        opts = run_tui_menu(skip_prereqs=skip_prereqs or (not first_run))
+        first_run = False
+        act = opts.get("action")
+
+        if act == "run":
+            class RunArgs:
+                category = ",".join(opts.get("categories", []))
+                no_screenshots = not opts.get("screenshots", True)
+                mock = opts.get("mock", False)
+                unsanitize = opts.get("unsanitize", False)
+                audit_days = opts.get("audit_days", 30)
+                output_dir = opts.get("output_dir", "docs")
+            cmd_run(RunArgs())
+            console.print("\n[dim]Press any key or return to main menu...[/dim]\n")
+        elif act in ("login_done", "prereqs_done", "logout_done", "setup_done"):
+            continue
+        elif act == "setup":
+            cmd_setup(None)
+        elif act == "login":
+            cmd_login(None)
+        elif act == "lint":
+            class LintArgs:
+                directory = "docs"
+            cmd_lint_ste(LintArgs())
+            console.print("\n[dim]Returning to main menu...[/dim]\n")
+        elif act == "diff":
+            class DiffArgs:
+                output_dir = "docs"
+                mock = False
+            cmd_diff(DiffArgs())
+            console.print("\n[dim]Returning to main menu...[/dim]\n")
+        elif act in ("exit", "cancel"):
+            console.print("[bold cyan]👋 Exiting Intune Visual Doc. Goodbye![/bold cyan]\n")
+            break
 
 
 def main():

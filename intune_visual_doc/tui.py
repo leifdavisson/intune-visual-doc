@@ -154,7 +154,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             {"name": "🗑️  7. Logout (Purge Stored Credentials)", "value": "logout"},
             {"name": "❌ 8. Exit", "value": "exit"},
         ],
-        default="run" if audit["can_skip_login"] else "login",
+        default="prereqs",
         style=TUI_STYLE,
     ).execute()
 
