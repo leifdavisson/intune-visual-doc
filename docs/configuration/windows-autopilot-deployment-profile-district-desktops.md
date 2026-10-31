@@ -26,14 +26,14 @@
 Technicians can compare current portal blades with these screenshots.
 
 ### Overview & Assignment Status
-![Overview Dashboard](../assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/overview.png)
+![Overview Dashboard](../assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/overview.png)
 
-*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/overview.png`)
+*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/overview.png`)
 
 ### Configured Properties Blade
-![Properties Blade](../assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/properties.png)
+![Properties Blade](../assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/properties.png)
 
-*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/f92e59d2-8313-4bc0-c833-50a0a9d5174c/properties.png`)
+*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/windows-autopilot-deployment-profile-district-desktops/properties.png`)
 
 ---
 
@@ -69,7 +69,7 @@ This table lists groups included or excluded by this policy.
 
 ```json
 {
-  "id": "f92e59d2-8313-4bc0-c833-50a0a9d5174c",
+  "id": "[MASKED: f92e...174c]",
   "displayName": "Windows Autopilot Deployment Profile - District Desktops"
 }
 ```

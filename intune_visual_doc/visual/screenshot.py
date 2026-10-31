@@ -9,6 +9,8 @@ from typing import Dict, Any, List, Optional
 from playwright.sync_api import sync_playwright
 
 from ..auth.portal_auth import ensure_portal_session, has_valid_session
+from ..generator.engine import slugify
+from ..prerequisites import load_config
 
 
 def build_blade_urls(policy: Dict[str, Any]) -> Dict[str, str]:
@@ -56,8 +58,15 @@ class ScreenshotManager:
         # Ensure authentication session is valid
         auth_file = ensure_portal_session()
 
+        cfg = load_config()
+        browser_id = cfg.get("browser_id")
+        channel = "msedge" if browser_id == "msedge" else ("chrome" if browser_id == "chrome" else None)
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=self.headless)
+            try:
+                browser = p.chromium.launch(channel=channel, headless=self.headless) if channel else p.chromium.launch(headless=self.headless)
+            except Exception:
+                browser = p.chromium.launch(headless=self.headless)
             context = browser.new_context(
                 storage_state=auth_file,
                 viewport={"width": 1440, "height": 900},
@@ -67,7 +76,7 @@ class ScreenshotManager:
 
             for idx, policy in enumerate(policies, start=1):
                 p_id = policy.get("id")
-                p_slug = policy.get("slug", p_id)
+                p_slug = policy.get("slug") or slugify(policy.get("name", p_id))
                 category = policy.get("category", "configuration")
 
                 if on_progress:

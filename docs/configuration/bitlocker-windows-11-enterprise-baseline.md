@@ -26,14 +26,14 @@
 Technicians can compare current portal blades with these screenshots.
 
 ### Overview & Assignment Status
-![Overview Dashboard](../assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/overview.png)
+![Overview Dashboard](../assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/overview.png)
 
-*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/overview.png`)
+*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/overview.png`)
 
 ### Configured Properties Blade
-![Properties Blade](../assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/properties.png)
+![Properties Blade](../assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/properties.png)
 
-*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/c71a39f0-6101-49b8-a611-38e8e7b3952a/properties.png`)
+*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/bitlocker-windows-11-enterprise-baseline/properties.png`)
 
 ---
 
@@ -71,7 +71,7 @@ This table lists groups included or excluded by this policy.
 
 ```json
 {
-  "id": "c71a39f0-6101-49b8-a611-38e8e7b3952a",
+  "id": "[MASKED: c71a...952a]",
   "name": "BitLocker - Windows 11 Enterprise Baseline",
   "platforms": "windows11",
   "technologies": "mdm,microsoftSense"

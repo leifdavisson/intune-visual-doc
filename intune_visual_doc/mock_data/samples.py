@@ -6,6 +6,7 @@ Allows instant offline verification without requiring live Microsoft credentials
 import os
 import shutil
 from typing import Dict, Any, List, Tuple
+from ..generator.engine import slugify
 
 
 def get_mock_policies() -> List[Dict[str, Any]]:
@@ -189,7 +190,7 @@ def setup_mock_screenshots(output_dir: str, policies: List[Dict[str, Any]]) -> D
 
     for idx, p in enumerate(policies):
         p_id = p["id"]
-        slug = p.get("slug", p_id)
+        slug = p.get("slug") or slugify(p.get("name", p_id))
         cat = p.get("category", "configuration")
 
         target_dir = os.path.join(output_dir, "assets", "screenshots", cat, slug)

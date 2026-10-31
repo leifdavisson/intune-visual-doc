@@ -196,6 +196,7 @@ intunedoc logout
 
 All design decisions are recorded in standard ADR format using Simplified Technical English:
 
+- [ADR Index: Full Decision Table](file:///home/leifdavisson/intune_docs/docs/adr/README.md) (`file:///home/leifdavisson/intune_docs/docs/adr/README.md`)
 - [ADR 0001: Record Architecture Decisions](file:///home/leifdavisson/intune_docs/docs/adr/0001-record-architecture-decisions.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0001-record-architecture-decisions.md`)
 - [ADR 0002: Dual Authentication and Session Persistence](file:///home/leifdavisson/intune_docs/docs/adr/0002-dual-authentication-and-session-persistence.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0002-dual-authentication-and-session-persistence.md`)
 - [ADR 0003: Data Extraction via Microsoft Graph](file:///home/leifdavisson/intune_docs/docs/adr/0003-data-extraction-via-microsoft-graph.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0003-data-extraction-via-microsoft-graph.md`)
@@ -205,6 +206,14 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0007: Interactive Terminal User Interface](file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md`)
 - [ADR 0008: Browser Detection and Credential Security](file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md`)
 - [ADR 0009: Default Prerequisites and Dependency Gates](file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md`)
+- [ADR 0010: Agent Documentation and Skill Architecture](file:///home/leifdavisson/intune_docs/docs/adr/0010-agent-documentation-and-skill-architecture.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0010-agent-documentation-and-skill-architecture.md`)
+
+---
+
+## AI Agent & Skill Guides
+
+- [AGENTS.md: Repository Invariants & Context Pointers](file:///home/leifdavisson/intune_docs/AGENTS.md) (`file:///home/leifdavisson/intune_docs/AGENTS.md`)
+- [SKILL.md: Portable Agent Skill Package](file:///home/leifdavisson/intune_docs/.agents/skills/intune-visual-doc/SKILL.md) (`file:///home/leifdavisson/intune_docs/.agents/skills/intune-visual-doc/SKILL.md`)
 
 ---
 

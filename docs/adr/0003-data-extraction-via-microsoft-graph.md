@@ -6,26 +6,30 @@
 
 ## Context
 
-Microsoft Intune policies exist across multiple Graph API endpoints.
-These include:
-- Device Configuration Profiles (`/deviceManagement/deviceConfigurations`)
-- Settings Catalog Policies (`/deviceManagement/configurationPolicies`)
-- Compliance Policies (`/deviceManagement/deviceCompliancePolicies`)
-- Endpoint Security Policies (Defender, Disk Encryption, Firewall)
-- Mobile Applications (`/deviceAppManagement/mobileApps`)
+Microsoft Intune policies span multiple [Microsoft Graph API](https://learn.microsoft.com/en-us/graph/overview) `beta` endpoints:
+- Device Compliance Policies (`/deviceManagement/deviceCompliancePolicies?$expand=assignments`)
+- Settings Catalog Policies (`/deviceManagement/configurationPolicies?$expand=settings,assignments`)
+- Configuration Templates (`/deviceManagement/deviceConfigurations?$expand=assignments`)
+- Mobile Applications (`/deviceAppManagement/mobileApps?$expand=assignments,relationships`)
 - Intune Admin Audit Logs (`/deviceManagement/auditEvents`)
+- Entra ID Groups (`/groups/{id}?$select=id,displayName`)
 
-Large tenants can trigger HTTP 429 throttling limits.
+Large tenants trigger HTTP `429` throttling or `503`/`504` transient errors and paginate responses via `@odata.nextLink`.
 
 ## Decision
 
-1. Query policies with an exponential backoff client that respects `Retry-After` headers.
-2. Resolve Entra ID Group IDs to friendly group names (e.g., "All Corporate Laptops").
-3. Flatten nested Settings Catalog definitions into structured Markdown tables.
-4. Extract the most recent admin audit events to show who modified each policy.
+1. **Required Read Scopes**: Request read-only permissions (`DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`, `DeviceManagementServiceConfig.Read.All`, `Directory.Read.All`).
+2. **Resilient Graph Client (`graph/client.py`)**:
+   - Send `ConsistencyLevel: eventual` headers on every request.
+   - Retry HTTP `429`, `503`, and `504` responses up to 5 times, honoring `Retry-After` headers with exponential backoff.
+   - Follow `@odata.nextLink` automatically until all pages finish loading.
+3. **Group Target Resolution (`graph/resolver.py`)**: Cache Entra ID group GUID lookups in memory and fall back gracefully to the raw GUID when directory permissions are absent.
+4. **Relationship & Audit Correlation (`graph/collectors.py`)**:
+   - Flatten nested Settings Catalog `settingInstance` trees into tabular key-value rows.
+   - Extract Win32 app `relationships` to record app supersedences and dependencies.
+   - Match `/deviceManagement/auditEvents` targets to attribute `last_modified_by` on each policy.
 
 ## Consequences
 
-- Documentation contains live policy values and assignment names.
-- Throttling protection avoids API failures.
-- Group names make documents easy to read.
+- Documentation reflects live policy settings, group names, app supersedences, and admin actors.
+- Pagination and rate-limit retries prevent partial exports on large tenants.

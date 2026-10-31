@@ -26,14 +26,14 @@
 Technicians can compare current portal blades with these screenshots.
 
 ### Overview & Assignment Status
-![Overview Dashboard](../assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/overview.png)
+![Overview Dashboard](../assets/screenshots/apps/company-portal-app-offline/overview.png)
 
-*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/overview.png`)
+*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/company-portal-app-offline/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/company-portal-app-offline/overview.png`)
 
 ### Configured Properties Blade
-![Properties Blade](../assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/properties.png)
+![Properties Blade](../assets/screenshots/apps/company-portal-app-offline/properties.png)
 
-*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/a13f60e3-9424-4cd1-d944-61b1b0e6285d/properties.png`)
+*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/company-portal-app-offline/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/apps/company-portal-app-offline/properties.png`)
 
 ---
 
@@ -66,7 +66,7 @@ This table lists groups included or excluded by this policy.
 
 ```json
 {
-  "id": "a13f60e3-9424-4cd1-d944-61b1b0e6285d",
+  "id": "[MASKED: a13f...285d]",
   "displayName": "Company Portal App (Offline)",
   "publisher": "Microsoft Corporation"
 }

@@ -26,14 +26,14 @@
 Technicians can compare current portal blades with these screenshots.
 
 ### Overview & Assignment Status
-![Overview Dashboard](../assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/overview.png)
+![Overview Dashboard](../assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/overview.png)
 
-*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/overview.png`)
+*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/overview.png`)
 
 ### Configured Properties Blade
-![Properties Blade](../assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/properties.png)
+![Properties Blade](../assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/properties.png)
 
-*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/b24a71f4-0535-4de2-ea55-72c2c1f7396e/properties.png`)
+*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/configuration/draft-lab-kiosk-restrictions-unassigned/properties.png`)
 
 ---
 
@@ -65,7 +65,7 @@ This table lists groups included or excluded by this policy.
 
 ```json
 {
-  "id": "b24a71f4-0535-4de2-ea55-72c2c1f7396e",
+  "id": "[MASKED: b24a...396e]",
   "displayName": "Draft Lab Kiosk Restrictions (Unassigned)"
 }
 ```

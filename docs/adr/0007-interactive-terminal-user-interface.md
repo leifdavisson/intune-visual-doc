@@ -6,23 +6,24 @@
 
 ## Context
 
-Administrators want to customize options before running the documentation tool.
-Options include:
-- Selecting categories (Compliance, Configuration, Endpoint Security, Apps, Scripts)
-- Enabling or skipping browser screenshots
-- Setting audit log days
-- Toggling sanitization mode
-
-Remembering long CLI flags is inconvenient.
+Administrators want an interactive menu to inspect prerequisites, choose browser profiles, and toggle run flags without memorizing CLI arguments.
+They also want to copy the exact CLI command for future scheduled scripts.
 
 ## Decision
 
-1. Build an interactive TUI using [Rich](https://github.com/Textualize/rich) and [InquirerPy](https://github.com/kazhala/InquirerPy).
-2. Display a live CLI command preview as the user toggles options.
-3. Allow direct execution (`intunedoc run ...`) for scripting and automation.
+1. Build an interactive TUI (`intune_visual_doc/tui.py`) with [Rich](https://github.com/Textualize/rich) and [InquirerPy](https://github.com/kazhala/InquirerPy), launched when running `intunedoc` (TTY with no arguments) or `intunedoc tui`.
+2. Order the 7 menu items in strict operational sequence:
+   - `1. Check Prerequisites & Select Browser / Profile`
+   - `2. Authenticate & Hook Session (Graph + Portal)`
+   - `3. Run Documentation Generator (Extract & Screenshot)`
+   - `4. Verify ASD-STE100 Compliance (Linter)`
+   - `5. Audit Configuration Drift (Diff)`
+   - `6. Logout (Purge Stored Credentials)`
+   - `7. Exit`
+3. Render a live **Command Preview** panel showing the equivalent `intunedoc run ...` CLI invocation before execution.
+4. Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`) so interactive TUI runs always target real tenants.
 
 ## Consequences
 
-- Users get an intuitive graphical terminal menu for manual runs.
-- Users can see and copy the exact CLI command for future scripted runs.
-- The interface functions cleanly over SSH and Linux terminals.
+- Operators follow a predictable numbered workflow in local terminals and SSH sessions.
+- Every TUI run teaches the equivalent non-interactive CLI command for automation.

@@ -17,7 +17,7 @@ from .auth.portal_auth import authenticate_via_browser_hook
 from .graph import GraphClient, PolicyCollector
 from .visual import ScreenshotManager
 from .generator import DocGenerator
-from .audit import lint_markdown_directory
+from .audit import lint_markdown_directory, compare_with_backups
 from .prerequisites import display_prerequisites_table, wipe_all_credentials
 from .mock_data import get_mock_policies, get_mock_audit_events, setup_mock_screenshots
 
@@ -177,37 +177,83 @@ def cmd_lint_ste(args):
         console.print("[bold green]🎉 100% ASD-STE100 Compliant! No issues found.[/bold green]\n")
 
 
+def cmd_diff(args):
+    """Compare live or mock Intune policies against saved docs/raw_json/ backups."""
+    output_dir = os.path.abspath(getattr(args, "output_dir", "docs"))
+    use_mock = getattr(args, "mock", False)
+    console.print(Panel(f"[bold cyan]🔍 Auditing Configuration Drift[/bold cyan]\nBackup Directory: {output_dir}/raw_json"))
+
+    if use_mock:
+        policies = get_mock_policies()
+    else:
+        try:
+            token = get_graph_token()
+            client = GraphClient(token)
+            collector = PolicyCollector(client)
+            policies = (
+                collector.get_compliance_policies()
+                + collector.get_configuration_policies()
+                + collector.get_device_configurations()
+                + collector.get_managed_apps()
+            )
+        except Exception as e:
+            console.print(f"[red]Authentication not ready: {e}[/red]")
+            console.print("[dim]Hint: Run 'intunedoc login' first or pass '--mock' for offline verification.[/dim]")
+            sys.exit(1)
+
+    findings = compare_with_backups(policies, output_dir=output_dir)
+    if not findings:
+        console.print("[bold green]✅ No configuration drift detected since last backup.[/bold green]\n")
+        return
+
+    table = Table(title="Configuration Drift Report", border_style="yellow")
+    table.add_column("Policy", style="cyan")
+    table.add_column("Category", style="magenta")
+    table.add_column("Drift Status", style="bold yellow")
+    table.add_column("Details", style="white")
+    for item in findings:
+        table.add_row(item["policy"], item["category"], item["status"], item["details"])
+    console.print(table)
+
+
+def _dispatch_tui(skip_prereqs: bool = False):
+    """Launch TUI and execute selected workflow action."""
+    from .tui import run_tui_menu
+    opts = run_tui_menu(skip_prereqs=skip_prereqs)
+    act = opts.get("action")
+    if act == "run":
+        class RunArgs:
+            category = ",".join(opts.get("categories", []))
+            no_screenshots = not opts.get("screenshots", True)
+            mock = opts.get("mock", False)
+            unsanitize = opts.get("unsanitize", False)
+            audit_days = opts.get("audit_days", 30)
+            output_dir = opts.get("output_dir", "docs")
+        cmd_run(RunArgs())
+    elif act in ("login_done", "prereqs_done", "logout_done"):
+        return
+    elif act == "login":
+        cmd_login(None)
+    elif act == "lint":
+        class LintArgs:
+            directory = "docs"
+        cmd_lint_ste(LintArgs())
+    elif act == "diff":
+        class DiffArgs:
+            output_dir = "docs"
+            mock = False
+        cmd_diff(DiffArgs())
+    elif act in ("exit", "cancel"):
+        print("Operation cancelled.")
+
+
 def main():
     setup_graceful_interrupt()
 
     # If no arguments provided in interactive terminal, launch TUI
     if len(sys.argv) == 1 and sys.stdin.isatty():
-        from .tui import run_tui_menu
-        opts = run_tui_menu(skip_prereqs=False)
-        act = opts.get("action")
-        if act == "run":
-            class DummyArgs:
-                category = ",".join(opts.get("categories", []))
-                no_screenshots = not opts.get("screenshots", True)
-                mock = opts.get("mock", False)
-                unsanitize = opts.get("unsanitize", False)
-                audit_days = opts.get("audit_days", 30)
-                output_dir = opts.get("output_dir", "docs")
-            cmd_run(DummyArgs())
-            return
-        elif act in ("login_done", "prereqs_done"):
-            return
-        elif act == "login":
-            cmd_login(None)
-            return
-        elif act == "lint":
-            class DummyLintArgs:
-                directory = "docs"
-            cmd_lint_ste(DummyLintArgs())
-            return
-        elif act in ("exit", "cancel"):
-            print("Operation cancelled.")
-            return
+        _dispatch_tui(skip_prereqs=False)
+        return
 
     parser = argparse.ArgumentParser(
         prog="intunedoc",
@@ -242,22 +288,14 @@ def main():
     lint_parser.add_argument("--directory", type=str, default="docs", help="Directory of markdown files to audit (default: docs)")
 
     # diff subcommand
-    subparsers.add_parser("diff", help="View configuration drift compared to last run")
+    diff_parser = subparsers.add_parser("diff", help="View configuration drift compared to last run")
+    diff_parser.add_argument("--output-dir", type=str, default="docs", help="Documentation directory containing raw_json/ backups")
+    diff_parser.add_argument("--mock", action="store_true", help="Compare mock policies against saved backups")
 
     args = parser.parse_args()
 
     if args.command == "tui":
-        from .tui import run_tui_menu
-        opts = run_tui_menu(skip_prereqs=args.skip_prereqs)
-        if opts.get("action") == "run":
-            class DummyArgs:
-                category = ",".join(opts.get("categories", []))
-                no_screenshots = not opts.get("screenshots", True)
-                mock = opts.get("mock", False)
-                unsanitize = opts.get("unsanitize", False)
-                audit_days = opts.get("audit_days", 30)
-                output_dir = opts.get("output_dir", "docs")
-            cmd_run(DummyArgs())
+        _dispatch_tui(skip_prereqs=args.skip_prereqs)
     elif args.command == "check-prereqs":
         display_prerequisites_table()
     elif args.command == "login":
@@ -269,8 +307,7 @@ def main():
     elif args.command == "lint-ste":
         cmd_lint_ste(args)
     elif args.command == "diff":
-        console.print("[yellow]Comparing current state against docs/raw_json/ backups...[/yellow]")
-        console.print("[green]No drift detected since last run.[/green]")
+        cmd_diff(args)
     else:
         parser.print_help()
 

@@ -6,22 +6,23 @@
 
 ## Context
 
-Intune policies can contain confidential data:
-- Internal Wi-Fi pre-shared keys
-- SCEP / PKCS Certificate Authority URLs
-- Custom VPN server addresses
-- Entra ID Tenant GUIDs
+Intune policies often contain confidential secrets:
+- Wi-Fi pre-shared keys and RADIUS secrets
+- Passwords, passphrases, and private keys
+- API tokens and long base64 or hex credential strings
 
-If teams commit documentation to git, exposed secrets cause security incidents.
+Committing unsanitized exports to Git repositories risks credential leaks.
 
 ## Decision
 
-1. Enable secret sanitization by default.
-2. Mask sensitive strings (e.g. `Wi-Fi Key: [MASKED: ********]`, `CA Server: ca.***.internal`).
-3. Add the `--unsanitize` CLI flag for internal, trusted audits that need full values.
+1. **Sanitize by Default (`generator/sanitizer.py`)**: Keep `unsanitize=False` as the mandatory default across all runs.
+2. **Dual-Layer Redaction (`generator/engine.py`)**:
+   - Redact any key matching `password|presharedkey|secret|privatekey|apikey|token|passphrase|credential|wifikey|radiussecret` (case-insensitive) to `[MASKED: ********]`.
+   - Redact 30+ character alphanumeric/base64 token strings to `[MASKED: <first4>...<last4>]`.
+   - Apply `sanitize_value` recursively to both flattened `settings` tables and raw JSON payloads (`<details>` blocks and `docs/raw_json/<category>/<slug>.json`).
+3. **Explicit Opt-Out**: Expose `--unsanitize` only when an administrator explicitly requests raw secret output for an offline audit.
 
 ## Consequences
 
-- Documentation is safe for source control by default.
-- Accidental leaks are prevented.
-- Administrators can still view complete values when required with explicit intent.
+- Markdown guides and `docs/raw_json/` backups remain safe for Git commits by default.
+- Drift checks (`intunedoc diff`) compare sanitized structures consistently.

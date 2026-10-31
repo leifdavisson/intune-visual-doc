@@ -6,27 +6,25 @@
 
 ## Context
 
-Technicians with different experience levels read documentation.
-Complex sentences, passive voice, and jargon create confusion.
-We need clear and consistent language across all generated guides.
+Support technicians and security auditors with varied experience read our generated guides.
+Long sentences, passive voice, and inconsistent terms slow troubleshooting.
+AI agents and contributors editing templates or ADRs need deterministic, machine-checkable prose rules.
 
 ## Decision
 
-1. Follow the [ASD-STE100 (Simplified Technical English)](https://asd-ste100.org/) specification.
-2. Enforce key rules:
-   - Keep sentences under 25 words.
-   - Use active voice only.
-   - Put one instruction per sentence.
-   - Use standard terminology.
-3. Include visual hygiene badges at the top of each document:
-   - 🟢 `Status: Assigned`
-   - 🟡 `Status: Unassigned / Draft`
-   - 🛡️ `Baseline: Security Recommended`
-4. Add reference links to official [Microsoft Learn Intune Guides](https://learn.microsoft.com/en-us/mem/intune/).
-5. Build an automated linter (`intunedoc lint-ste`) to verify document compliance.
+1. Follow the [ASD-STE100 (Simplified Technical English)](https://asd-ste100.org/) standard across all files in `docs/` and [Jinja2](https://jinja.palletsprojects.com/) templates in `intune_visual_doc/generator/templates/`.
+2. Enforce three automated rules in `intune_visual_doc/audit/ste_linter.py` (`intunedoc lint-ste`):
+   - **`STE-01` (Sentence Length)**: Keep every prose sentence at 25 words or fewer.
+   - **`STE-02` (Active Voice)**: Write in active voice; avoid passive constructs matching `(is|are|was|were|be|been|being) <verb>ed by`.
+   - **`STE-03` (Approved Vocabulary)**: Use simple words (`use` instead of `utilize`, `to` instead of `in order to`, `and` instead of `as well as`, `before` instead of `prior to`, `after` instead of `subsequent to`, `if` instead of `in the event that`).
+   - **Structural Exemptions**: The linter skips headings (`#`), tables (`|`), code blocks (```` ``` ````), inline badges (`` ` ``), callouts (`>`), lists (`-`, `*`), and images (`!`).
+3. Render visual hygiene badges (`generator/badges.py`) at the top of each policy guide:
+   - `🟢 Status: Assigned` or `🟡 Status: Unassigned / Dormant`
+   - `🛡️ Security Baseline: Recommended`
+   - Platform and `👤 Modified By` attribution badges
+4. Attach category-level [Microsoft Learn Intune](https://learn.microsoft.com/en-us/mem/intune/) reference links.
 
 ## Consequences
 
-- Basic technicians and senior engineers can understand documents quickly.
-- Unassigned or dormant policies stand out immediately.
-- Automated tests ensure consistent quality.
+- Tier-1 technicians and auditors read concise, unambiguous instructions.
+- CI pipelines enforce `intunedoc lint-ste --directory docs` on every pull request.

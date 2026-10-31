@@ -26,14 +26,14 @@
 Technicians can compare current portal blades with these screenshots.
 
 ### Overview & Assignment Status
-![Overview Dashboard](../assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/overview.png)
+![Overview Dashboard](../assets/screenshots/compliance/staff-and-student-device-compliance-policy/overview.png)
 
-*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/overview.png`)
+*Direct File Link*: [Open Overview Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/staff-and-student-device-compliance-policy/overview.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/staff-and-student-device-compliance-policy/overview.png`)
 
 ### Configured Properties Blade
-![Properties Blade](../assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/properties.png)
+![Properties Blade](../assets/screenshots/compliance/staff-and-student-device-compliance-policy/properties.png)
 
-*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/e81d48c1-7202-4ab9-b722-49f9f8c4063b/properties.png`)
+*Direct File Link*: [Open Properties Screenshot](file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/staff-and-student-device-compliance-policy/properties.png) (`file:///home/leifdavisson/intune_docs/docs/assets/screenshots/compliance/staff-and-student-device-compliance-policy/properties.png`)
 
 ---
 
@@ -69,7 +69,7 @@ This table lists groups included or excluded by this policy.
 
 ```json
 {
-  "id": "e81d48c1-7202-4ab9-b722-49f9f8c4063b",
+  "id": "[MASKED: e81d...063b]",
   "displayName": "Staff and Student Device Compliance Policy",
   "scheduledActionsForRule": [
     {

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 
-from .sanitizer import sanitize_settings_list
+from .sanitizer import sanitize_settings_list, sanitize_value
 from .badges import get_hygiene_badges, get_learn_link
 
 
@@ -113,6 +113,8 @@ class DocGenerator:
             ov_rel = os.path.relpath(ov_abs, cat_dir) if ov_abs else None
             pr_rel = os.path.relpath(pr_abs, cat_dir) if pr_abs else None
 
+            sanitized_raw = sanitize_value("raw", p.get("raw", {}), unsanitize=self.unsanitize)
+
             rendered = policy_tmpl.render(
                 policy=p,
                 badges=get_hygiene_badges(p),
@@ -121,18 +123,18 @@ class DocGenerator:
                 overview_relative_path=ov_rel,
                 properties_screenshot_path=pr_abs,
                 properties_relative_path=pr_rel,
-                raw_json=json.dumps(p.get("raw", {}), indent=2),
+                raw_json=json.dumps(sanitized_raw, indent=2),
             )
 
             doc_path = os.path.join(cat_dir, f"{p['slug']}.md")
             with open(doc_path, "w", encoding="utf-8") as f:
                 f.write(rendered)
 
-            # Write raw JSON backup
+            # Write sanitized raw JSON backup
             cat_json_dir = os.path.join(raw_json_dir, cat)
             os.makedirs(cat_json_dir, exist_ok=True)
             with open(os.path.join(cat_json_dir, f"{p['slug']}.json"), "w", encoding="utf-8") as f:
-                json.dump(p.get("raw", {}), f, indent=2)
+                json.dump(sanitized_raw, f, indent=2)
 
         # Render Audit log document
         audit_dir = os.path.join(self.output_dir, "audit")
