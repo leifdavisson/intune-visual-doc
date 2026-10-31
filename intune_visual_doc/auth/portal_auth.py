@@ -1,6 +1,7 @@
 """
 Playwright session manager and network interceptor for Microsoft Intune Admin Center.
-Hooks into browser network calls to extract live Microsoft Graph tokens and capture session state.
+Hooks into browser network calls and local session storage to extract live Microsoft Graph tokens.
+Provides a live feedback loop and automatically closes the browser upon successful login.
 Enforces strict filesystem permissions on all credential artifacts.
 """
 
@@ -8,8 +9,12 @@ import os
 import sys
 import time
 import json
+import base64
 import signal
-from typing import Optional, Dict, Any
+import select
+from typing import Optional, Dict, Any, List, Tuple
+from rich.console import Console
+from rich.panel import Panel
 from playwright.sync_api import sync_playwright
 
 from ..prerequisites import (
@@ -20,10 +25,69 @@ from ..prerequisites import (
     write_secure_file,
 )
 
+console = Console()
 AUTH_DIR = os.path.join(os.getcwd(), ".auth")
 PORTAL_AUTH_FILE = os.path.join(AUTH_DIR, "playwright_state.json")
 LIVE_TOKEN_FILE = os.path.join(AUTH_DIR, "live_token.json")
 INTUNE_PORTAL_URL = "https://intune.microsoft.com"
+
+
+def parse_jwt_claims(jwt_str: str) -> Dict[str, Any]:
+    """Parse JWT claims payload without third-party dependencies."""
+    try:
+        parts = jwt_str.split(".")
+        if len(parts) >= 2:
+            payload_b64 = parts[1]
+            rem = len(payload_b64) % 4
+            if rem > 0:
+                payload_b64 += "=" * (4 - rem)
+            return json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def is_graph_token(jwt_token: str) -> Tuple[bool, str]:
+    """Check if JWT token audience is Microsoft Graph and extract user identity."""
+    claims = parse_jwt_claims(jwt_token)
+    aud = str(claims.get("aud", ""))
+    upn = claims.get("upn") or claims.get("unique_name") or ""
+    # Microsoft Graph App ID is 00000003-0000-0000-c000-000000000000 or https://graph.microsoft.com
+    if "graph.microsoft.com" in aud or "00000003-0000-0000-c000-000000000000" in aud:
+        return True, upn
+    return False, upn
+
+
+def extract_tokens_from_page(page) -> List[str]:
+    """Extract cached MSAL tokens from browser sessionStorage and localStorage."""
+    try:
+        tokens = page.evaluate("""() => {
+            const list = [];
+            for (const store of [window.sessionStorage, window.localStorage]) {
+                if (!store) continue;
+                for (let i = 0; i < store.length; i++) {
+                    try {
+                        const k = store.key(i);
+                        const v = store.getItem(k);
+                        if (!v) continue;
+                        if (v.includes("eyJ")) {
+                            try {
+                                const obj = JSON.parse(v);
+                                if (obj.secret && typeof obj.secret === 'string') list.push(obj.secret);
+                                if (obj.accessToken && typeof obj.accessToken === 'string') list.push(obj.accessToken);
+                                if (obj.access_token && typeof obj.access_token === 'string') list.push(obj.access_token);
+                            } catch (e) {
+                                if (v.startsWith("eyJ")) list.push(v);
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+            return list;
+        }""")
+        return [t for t in tokens if isinstance(t, str) and len(t) > 100]
+    except Exception:
+        return []
 
 
 def get_live_graph_token() -> Optional[str]:
@@ -68,8 +132,8 @@ def authenticate_via_browser_hook(
 ) -> Optional[Dict[str, Any]]:
     """
     Launch selected browser (e.g. Microsoft Edge) via Playwright.
-    Hooks into network requests to capture live Graph Bearer token and portal session state.
-    Catches window close and user cancellations without raising unhandled exceptions.
+    Hooks into network requests and session storage to capture live Graph Bearer token.
+    Provides a real-time terminal feedback loop and automatically closes the browser upon success.
     """
     ensure_secure_auth_dir()
 
@@ -84,19 +148,26 @@ def authenticate_via_browser_hook(
     p_label = cfg.get("profile_label", p_dir)
     acc = cfg.get("account_email", "")
 
-    print("\n" + "=" * 70)
-    print("🌐 Launching Browser for Microsoft Intune Authentication")
-    print(f"👉 Target Browser: {b_id.upper()} | Profile: {p_label} ({acc or 'Local'})")
-    print("Hooking into network traffic to extract live Microsoft Graph tokens...")
-    print("Complete sign-in or select your account in the browser window.")
-    print("If you close the browser window, login will cancel cleanly.")
-    print("=" * 70 + "\n")
+    console.print(Panel(
+        f"[bold cyan]🌐 Microsoft Intune Interactive Authentication[/bold cyan]\n\n"
+        f"Browser: [bold]{b_id.upper()}[/bold] | Profile: [bold]{p_label}[/bold] ({acc or 'Local'})\n\n"
+        f"[bold yellow]📌 Sign-In Instructions & Feedback Loop:[/bold yellow]\n"
+        f" 1. In the browser window, enter your password and approve MFA if prompted.\n"
+        f" 2. If prompted 'Stay signed in?', choose 'Yes' or 'No'.\n"
+        f" 3. [bold green]DO NOT manually close the browser window.[/bold green] As soon as you reach the\n"
+        f"    Intune Admin Center, this tool will detect your session, save tokens, and\n"
+        f"    [bold green]AUTOMATICALLY CLOSE THE BROWSER[/bold green] for you!\n\n"
+        f"[dim]Tip: If you reached the dashboard and the window does not close after a few seconds,\n"
+        f"simply click any blade (e.g. Devices or Tenant admin) or press [ENTER] in this terminal.[/dim]",
+        title="Interactive Authentication Wizard",
+        border_style="cyan",
+    ))
 
     captured_token = {"token": None, "user": ""}
     user_closed_window = {"flag": False}
 
     def signal_handler(sig, frame):
-        print("\n[!] Ctrl+C detected. Closing browser session cleanly...")
+        console.print("\n[yellow]⚠️  Ctrl+C detected. Closing browser session cleanly...[/yellow]")
         user_closed_window["flag"] = True
 
     original_sigint = signal.getsignal(signal.SIGINT)
@@ -120,23 +191,45 @@ def authenticate_via_browser_hook(
                     ],
                 )
             except Exception as e:
-                print(f"[Warning] Direct persistent profile launch note: {e}")
+                console.print(f"[dim]Note on direct persistent profile launch: {e}[/dim]")
                 browser = p.chromium.launch(channel=channel, headless=False)
                 context = browser.new_context(viewport={"width": 1440, "height": 900})
 
             page = context.new_page()
 
-            # Attach request interceptor
+            # Attach request interceptor (case-insensitive header matching)
             def on_request(request):
-                url = request.url
-                if "graph.microsoft.com" in url or "manage.microsoft.com" in url:
-                    auth_header = request.headers.get("authorization", "")
-                    if auth_header.startswith("Bearer "):
-                        tok = auth_header[7:].strip()
-                        if len(tok) > 100 and not captured_token["token"]:
-                            captured_token["token"] = tok
-                            save_live_graph_token(tok)
-                            print("  ⚡ [Network Hook] Successfully captured live Microsoft Graph Bearer token!")
+                auth_val = ""
+                try:
+                    for k, v in request.headers.items():
+                        if k.lower() == "authorization":
+                            auth_val = v
+                            break
+                except Exception:
+                    pass
+
+                if not auth_val:
+                    try:
+                        for k, v in request.all_headers().items():
+                            if k.lower() == "authorization":
+                                auth_val = v
+                                break
+                    except Exception:
+                        pass
+
+                if auth_val.startswith("Bearer "):
+                    tok = auth_val[7:].strip()
+                    if len(tok) > 100:
+                        is_graph, user_upn = is_graph_token(tok)
+                        if is_graph or ("graph.microsoft.com" in request.url):
+                            if not captured_token["token"]:
+                                captured_token["token"] = tok
+                                captured_token["user"] = user_upn or acc
+                                save_live_graph_token(tok, account_hint=captured_token["user"])
+                                console.print(
+                                    f"\n[bold green]⚡ [Network Hook] Successfully captured live Microsoft Graph Bearer token"
+                                    f"{' for ' + captured_token['user'] if captured_token['user'] else ''}![/bold green]"
+                                )
 
             page.on("request", on_request)
 
@@ -146,49 +239,101 @@ def authenticate_via_browser_hook(
             page.on("close", on_close)
 
             # Navigate to Intune Admin Center
+            console.print("[cyan]⏳ Launching browser and navigating to https://intune.microsoft.com...[/cyan]")
             try:
                 page.goto(INTUNE_PORTAL_URL, timeout=45000)
             except Exception:
                 pass
 
-            # Loop while user interacts with browser
+            # Loop while user interacts with browser, with continuous feedback
             max_seconds = 300
             start_time = time.time()
+            last_status_time = 0.0
+            blade_navigate_triggered = False
 
             while not user_closed_window["flag"] and (time.time() - start_time < max_seconds):
+                elapsed = int(time.time() - start_time)
+                mins, secs = divmod(elapsed, 60)
+                time_str = f"[{mins}:{secs:02d}]"
+
                 if page.is_closed():
                     user_closed_window["flag"] = True
                     break
 
-                current_url = page.url
-                if ("intune.microsoft.com" in current_url) and captured_token["token"]:
-                    print("  ✅ Reached Microsoft Intune Admin Center dashboard!")
-                    try:
-                        page.wait_for_load_state("networkidle", timeout=4000)
-                    except Exception:
-                        pass
-                    break
-
-                if "intune.microsoft.com" in current_url and "login.microsoftonline.com" not in current_url:
-                    time.sleep(1.5)
-                    if captured_token["token"]:
-                        break
-
-                time.sleep(0.5)
-
-            # Save session state securely
-            if captured_token["token"]:
+                # Non-blocking check for Enter key in terminal
+                user_signaled_done = False
                 try:
-                    context.storage_state(path=PORTAL_AUTH_FILE)
-                    if os.name != "nt":
-                        try:
-                            os.chmod(PORTAL_AUTH_FILE, 0o600)
-                        except Exception:
-                            pass
-                    print("  ✅ Intune Admin Center session cookies and storage state saved.")
+                    if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                        sys.stdin.readline()
+                        user_signaled_done = True
+                        console.print(f"\n[cyan]{time_str} ⌨️  User signaled sign-in completed. Scanning session storage...[/cyan]")
                 except Exception:
                     pass
 
+                try:
+                    current_url = page.url
+                except Exception:
+                    current_url = ""
+
+                # Check browser storage (sessionStorage / localStorage) for MSAL Graph tokens
+                if ("intune.microsoft.com" in current_url or user_signaled_done) and not captured_token["token"]:
+                    page_tokens = extract_tokens_from_page(page)
+                    for pt in page_tokens:
+                        is_graph, user_upn = is_graph_token(pt)
+                        if is_graph:
+                            captured_token["token"] = pt
+                            captured_token["user"] = user_upn or acc
+                            save_live_graph_token(pt, account_hint=captured_token["user"])
+                            console.print(
+                                f"\n[bold green]{time_str} ⚡ [Session Storage Hook] Captured Microsoft Graph token"
+                                f"{' for ' + captured_token['user'] if captured_token['user'] else ''}![/bold green]"
+                            )
+                            break
+
+                # If token captured: secure session state and close browser automatically!
+                if captured_token["token"]:
+                    console.print(f"[bold green]{time_str} ✅ Authentication verified! Securing session state...[/bold green]")
+                    try:
+                        context.storage_state(path=PORTAL_AUTH_FILE)
+                        if os.name != "nt":
+                            try:
+                                os.chmod(PORTAL_AUTH_FILE, 0o600)
+                            except Exception:
+                                pass
+                        console.print(f"[dim]{time_str} 💾 Session state secured at .auth/playwright_state.json (0600)[/dim]")
+                    except Exception as e:
+                        console.print(f"[yellow]{time_str} ⚠️ Could not save storage state: {e}[/yellow]")
+
+                    console.print(f"[bold green]{time_str} 🚪 Sign-in complete! Automatically closing browser window...[/bold green]\n")
+                    time.sleep(1.0)
+                    break
+
+                # If user reached Intune Admin Center but token hasn't fired yet, trigger a blade navigation!
+                if "intune.microsoft.com" in current_url and "login.microsoftonline.com" not in current_url:
+                    if not blade_navigate_triggered and elapsed > 3:
+                        blade_navigate_triggered = True
+                        console.print(f"[cyan]{time_str} 🎯 Reached Intune Admin Center! Loading compliance blade to trigger Graph API calls...[/cyan]")
+                        try:
+                            page.goto("https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/compliance", timeout=15000)
+                        except Exception:
+                            pass
+
+                # Periodic live feedback in the terminal every 2 seconds
+                if time.time() - last_status_time >= 2.0:
+                    last_status_time = time.time()
+                    if "login.microsoftonline.com" in current_url:
+                        console.print(f"[dim]{time_str} ⏳ Waiting for credentials / MFA in browser window (login.microsoftonline.com)...[/dim]")
+                    elif "kmsi" in current_url:
+                        console.print(f"[dim]{time_str} ⏳ On 'Stay signed in?' prompt in browser window...[/dim]")
+                    elif "intune.microsoft.com" in current_url:
+                        console.print(f"[cyan]{time_str} 🎯 In Intune Admin Center. Intercepting Graph session tokens... (Press [ENTER] if dashboard is visible)[/cyan]")
+                    else:
+                        domain = current_url.split("/")[2] if "/" in current_url else "portal"
+                        console.print(f"[dim]{time_str} 🌐 Browser active on {domain}...[/dim]")
+
+                time.sleep(0.5)
+
+            # Close browser context cleanly
             try:
                 context.close()
             except Exception:
@@ -196,15 +341,22 @@ def authenticate_via_browser_hook(
 
     except Exception as e:
         if not user_closed_window["flag"]:
-            print(f"  [Browser session closed: {e}]")
+            console.print(f"[dim]Browser session notice: {e}[/dim]")
     finally:
         signal.signal(signal.SIGINT, original_sigint)
+
+    # Check if token exists in live token file even if closed
+    if not captured_token["token"]:
+        cached = get_live_graph_token()
+        if cached:
+            captured_token["token"] = cached
 
     if captured_token["token"]:
         return {
             "token": captured_token["token"],
             "session_file": PORTAL_AUTH_FILE,
             "status": "success",
+            "user": captured_token["user"],
         }
 
     if user_closed_window["flag"]:
@@ -212,14 +364,14 @@ def authenticate_via_browser_hook(
             "token": None,
             "session_file": None,
             "status": "cancelled",
-            "message": "Browser window was closed before login completed.",
+            "message": "Browser window was closed before sign-in completed. Run Step 2 again or use 'intunedoc setup' for unattended SPN.",
         }
 
     return {
         "token": None,
         "session_file": None,
         "status": "timeout",
-        "message": "Authentication timed out before completing sign-in.",
+        "message": "Authentication timed out after 5 minutes before sign-in completed.",
     }
 
 

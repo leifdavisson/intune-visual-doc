@@ -161,22 +161,31 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     if action == "login":
         cfg = load_config()
         p_label = cfg.get("profile_label", "Profile 1")
-        acc = cfg.get("account_email", "ledavisson@kern.org")
+        acc = cfg.get("account_email", "")
         b_label = cfg.get("browser_label", "Microsoft Edge")
 
-        console.print(f"\n[cyan]Target:[/cyan] {b_label} with {p_label} ({acc})")
+        console.print(f"\n[cyan]Target:[/cyan] {b_label} with {p_label} ({acc or 'Default'})")
         change = inquirer.confirm(message="Do you want to change the browser or profile for this login?", default=False).execute()
         if change:
             interactive_pick_browser_and_profile()
 
         res = authenticate_via_browser_hook(force_refresh=True)
         if not res or res.get("status") == "cancelled":
-            console.print("\n[yellow]⚠️  Browser closed without completing login. Authentication cancelled gracefully.[/yellow]\n")
+            console.print(f"\n[yellow]⚠️  {res.get('message', 'Browser closed without completing login.')}[/yellow]\n")
+            return {"action": "login_done"}
         elif res.get("status") == "success":
-            console.print("\n[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully![/bold green]\n")
+            user_display = res.get("user") or acc or "Intune Admin"
+            console.print(f"\n[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully for {user_display}![/bold green]\n")
+            proceed_now = inquirer.confirm(
+                message="Would you like to proceed directly to Step 4 (Run Documentation Generator) now?",
+                default=True,
+            ).execute()
+            if not proceed_now:
+                return {"action": "login_done"}
+            action = "run"
         else:
             console.print(f"\n[red]Login notice: {res.get('message', 'Authentication incomplete')}[/red]\n")
-        return {"action": "login_done"}
+            return {"action": "login_done"}
 
     if action != "run":
         return {"action": action}
