@@ -106,7 +106,7 @@ def interactive_pick_browser_and_profile():
 
 def build_cli_command(categories, screenshots, mock, unsanitize, audit_days, output_dir):
     parts = ["intunedoc", "run"]
-    if categories and len(categories) < 3:
+    if categories and len(categories) < 6:
         parts.extend(["--category", ",".join(categories)])
     if not screenshots:
         parts.append("--no-screenshots")
@@ -235,11 +235,14 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
 
     # Configuration for Run
     categories = inquirer.checkbox(
-        message="Select policy categories to document:",
+        message="Select Intune policy categories to document (matches Intune Admin Center):",
         choices=[
-            {"name": "Device Compliance Policies", "value": "compliance", "enabled": True},
-            {"name": "Configuration Profiles & Settings Catalog", "value": "configuration", "enabled": True},
-            {"name": "Mobile & Managed Applications", "value": "apps", "enabled": True},
+            {"name": "Devices > Compliance (Device compliance policies)", "value": "compliance", "enabled": True},
+            {"name": "Devices > Configuration (Settings catalog & profile templates)", "value": "configuration", "enabled": True},
+            {"name": "Endpoint security (Disk encryption, Antivirus, Firewall)", "value": "endpoint_security", "enabled": True},
+            {"name": "Devices > Scripts (PowerShell & Shell scripts)", "value": "scripts", "enabled": True},
+            {"name": "Devices > Enrollment (Autopilot & enrollment configurations)", "value": "enrollment", "enabled": True},
+            {"name": "Apps (Managed desktop, store, and mobile applications)", "value": "apps", "enabled": True},
         ],
         style=TUI_STYLE,
     ).execute()

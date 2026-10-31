@@ -89,23 +89,33 @@ def cmd_run(args):
             console.print("[dim]Hint: Run 'intunedoc login' to launch the browser and capture session.[/dim]")
             sys.exit(1)
 
-        cats = [c.strip().lower() for c in args.category.split(",")] if args.category else ["compliance", "configuration", "apps"]
+        cats = [c.strip().lower() for c in args.category.split(",")] if args.category else ["all"]
+        legacy_config_bundle = "configuration" in cats and not any(k in cats for k in ("endpoint_security", "scripts", "enrollment"))
+        fetch_all = "all" in cats or not cats
 
-        if "compliance" in cats:
-            console.print("[cyan]Fetching Device Compliance policies...[/cyan]")
+        if fetch_all or "compliance" in cats:
+            console.print("[cyan]Fetching Devices > Compliance policies...[/cyan]")
             policies.extend(collector.get_compliance_policies())
-        if "configuration" in cats:
-            console.print("[cyan]Fetching Settings Catalog and Configuration profiles...[/cyan]")
+
+        if fetch_all or "configuration" in cats:
+            console.print("[cyan]Fetching Devices > Configuration profiles (Settings Catalog & Templates)...[/cyan]")
             policies.extend(collector.get_configuration_policies())
             policies.extend(collector.get_device_configurations())
-            console.print("[cyan]Fetching Endpoint Security policies (Intents)...[/cyan]")
+
+        if fetch_all or legacy_config_bundle or "endpoint_security" in cats or "endpoint security" in cats:
+            console.print("[cyan]Fetching Endpoint security policies (Disk encryption, Antivirus, Firewall)...[/cyan]")
             policies.extend(collector.get_endpoint_security_policies())
-            console.print("[cyan]Fetching Device Management Scripts...[/cyan]")
+
+        if fetch_all or legacy_config_bundle or "scripts" in cats:
+            console.print("[cyan]Fetching Devices > Scripts (PowerShell & Shell)...[/cyan]")
             policies.extend(collector.get_device_management_scripts())
-            console.print("[cyan]Fetching Enrollment Configurations...[/cyan]")
+
+        if fetch_all or legacy_config_bundle or "enrollment" in cats:
+            console.print("[cyan]Fetching Devices > Enrollment configurations (Autopilot)...[/cyan]")
             policies.extend(collector.get_device_enrollment_configurations())
-        if "apps" in cats:
-            console.print("[cyan]Fetching Managed Applications...[/cyan]")
+
+        if fetch_all or "apps" in cats:
+            console.print("[cyan]Fetching Apps (Managed applications)...[/cyan]")
             policies.extend(collector.get_managed_apps())
 
         console.print(f"[cyan]Fetching Admin Audit Events (past {args.audit_days} days)...[/cyan]")
