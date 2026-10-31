@@ -40,7 +40,7 @@ echo "Step 2: Assigning Microsoft Graph Read-Only Application Permissions..."
 az ad app permission add \
     --id "$APP_ID" \
     --api "$GRAPH_APP_ID" \
-    --api-permissions dc377aa6-52d8-4e23-b271-2a7ae04cedf3=Role e40edd52-0699-41e5-8ab8-33e15001d640=Role 2f51be20-0bb4-4fed-bf7b-db946066c75e=Role 7ab7862c-4c0f-45da-866c-5e49c950552f=Role b0afded3-358c-46d8-8326-63365cf57f70=Role
+    --api-permissions dc377aa6-52d8-4e23-b271-2a7ae04cedf3=Role e40edd52-0699-41e5-8ab8-33e15001d640=Role 2f51be20-0bb4-4fed-bf7b-db946066c75e=Role 7ab7862c-4c0f-45da-866c-5e49c950552f=Role b0afded3-358c-46d8-8326-63365cf57f70=Role 4544c501-f5f2-441d-89e5-ea751d81b83d=Role 313fd57c-2656-430d-9b5f-0e136690736e=Role
 
 # 3. Create Service Principal Enterprise Application
 echo "Step 3: Creating Enterprise Application Service Principal..."

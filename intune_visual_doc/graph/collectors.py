@@ -88,6 +88,110 @@ class PolicyCollector:
             })
         return policies
 
+    def get_endpoint_security_policies(self) -> List[Dict[str, Any]]:
+        """Fetch Endpoint Security Policies (Antivirus, Disk Encryption, Firewall, EDR) via Intents."""
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/intents?$expand=settings,assignments",
+                beta=True
+            )
+        except Exception:
+            return []
+
+        policies = []
+        for intent in raw:
+            assignments = self.resolver.parse_assignments(intent.get("assignments", []))
+            settings = []
+            for s in intent.get("settings", []):
+                val = s.get("value")
+                def_id = s.get("definitionId", "Setting")
+                name = def_id.split(".")[-1] if "." in def_id else def_id
+                settings.append({
+                    "name": name,
+                    "value": str(val) if val is not None else "Configured",
+                })
+            policies.append({
+                "id": intent.get("id"),
+                "name": intent.get("displayName", "Unnamed Endpoint Security Policy"),
+                "description": intent.get("description", ""),
+                "category": "configuration",
+                "category_label": "Endpoint Security",
+                "platform": "Windows 10/11",
+                "last_modified": intent.get("lastModifiedDateTime"),
+                "created": intent.get("createdDateTime"),
+                "assignments": assignments,
+                "settings": settings,
+                "raw": intent,
+            })
+        return policies
+
+    def get_device_management_scripts(self) -> List[Dict[str, Any]]:
+        """Fetch PowerShell and Shell Device Management Scripts."""
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/deviceManagementScripts?$expand=assignments",
+                beta=True
+            )
+        except Exception:
+            return []
+
+        policies = []
+        for s in raw:
+            assignments = self.resolver.parse_assignments(s.get("assignments", []))
+            settings = [
+                {"name": "RunAsAccount", "value": s.get("runAsAccount", "system")},
+                {"name": "EnforceSignatureCheck", "value": str(s.get("enforceSignatureCheck", False))},
+                {"name": "RunAs32Bit", "value": str(s.get("runAs32Bit", False))},
+                {"name": "FileName", "value": s.get("fileName", "script.ps1")},
+            ]
+            policies.append({
+                "id": s.get("id"),
+                "name": s.get("displayName", "Unnamed Device Script"),
+                "description": s.get("description", ""),
+                "category": "configuration",
+                "category_label": "Device Script",
+                "platform": "Windows / macOS",
+                "last_modified": s.get("lastModifiedDateTime"),
+                "created": s.get("createdDateTime"),
+                "assignments": assignments,
+                "settings": settings,
+                "raw": s,
+            })
+        return policies
+
+    def get_device_enrollment_configurations(self) -> List[Dict[str, Any]]:
+        """Fetch Device Enrollment and Autopilot configurations."""
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/deviceEnrollmentConfigurations?$expand=assignments",
+                beta=True
+            )
+        except Exception:
+            return []
+
+        policies = []
+        for e in raw:
+            assignments = self.resolver.parse_assignments(e.get("assignments", []))
+            settings = []
+            for k, v in e.items():
+                if k not in {"id", "displayName", "description", "createdDateTime", "lastModifiedDateTime",
+                             "version", "assignments", "@odata.type", "@odata.context"} and v is not None and not isinstance(v, (list, dict)):
+                    settings.append({"name": k, "value": str(v)})
+            policies.append({
+                "id": e.get("id"),
+                "name": e.get("displayName", "Enrollment Configuration"),
+                "description": e.get("description", ""),
+                "category": "configuration",
+                "category_label": "Enrollment Configuration",
+                "platform": e.get("@odata.type", "").replace("#microsoft.graph.", ""),
+                "last_modified": e.get("lastModifiedDateTime"),
+                "created": e.get("createdDateTime"),
+                "assignments": assignments,
+                "settings": settings,
+                "raw": e,
+            })
+        return policies
+
     def get_managed_apps(self) -> List[Dict[str, Any]]:
         """Fetch Managed Mobile Applications, assignments, dependencies, and supersedences."""
         raw = self.client.get_all_pages(

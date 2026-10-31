@@ -33,9 +33,18 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 - **Read-Only Service Identities (`setup_wizard.py`, ADR 0011)**:
   Configure `intunedoc-reader-spn` with strictly read-only Graph application roles
   (`DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`,
-  `DeviceManagementServiceConfig.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`).
+  `DeviceManagementServiceConfig.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`,
+  `DeviceManagementRBAC.Read.All`, `DeviceManagementManagedDevices.Read.All`).
   Configure `svc-intunedoc-screenshot` with Entra `Directory Readers` and Intune RBAC `Read Only Operator`.
   Never grant `.ReadWrite` roles, `Global Administrator`, or `Intune Administrator`.
+- **Upstream API Freshness Protocol (`graph/collectors.py`, `visual/screenshot.py`)**:
+  Cloud APIs change frequently. Coding agents must verify upstream Microsoft documentation:
+  1. Check [Intune Graph API Overview](https://learn.microsoft.com/en-us/graph/api/resources/intune-graph-overview)
+     and [Device Management API](https://learn.microsoft.com/en-us/graph/api/resources/intune-devices-devicemanagement).
+  2. Review the monthly [Microsoft Graph Changelog](https://learn.microsoft.com/en-us/graph/changelog)
+     and [What's New in Intune](https://learn.microsoft.com/en-us/mem/intune/fundamentals/whats-new).
+  3. Validate deep-link blade URLs against live [Intune Admin Center](https://intune.microsoft.com) routes.
+  4. Verify all new read permissions against the [Graph Permissions Reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 - **ASD-STE100 Prose (`docs/`, `generator/templates/*.jinja2`)**:
   Write active-voice prose with sentences of 25 words or fewer using approved vocabulary
   (`use`, `to`, `and`, `before`, `after`, `if`).
@@ -49,8 +58,9 @@ Load only the ADR or skill matching your active task branch:
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
   full decision table (`ADR 0001`–`ADR 0011`) when adding or amending architectural decisions.
 - **Service Principals & Screenshot Service Account**:
-  [`docs/adr/0011-read-only-spn-and-service-account-setup.md`](docs/adr/0011-read-only-spn-and-service-account-setup.md) —
-  when updating `setup_wizard.py`, script generators, SPN Graph permissions, or dedicated user roles.
+  [`docs/adr/0011-read-only-spn-and-service-account-setup.md`](docs/adr/0011-read-only-spn-and-service-account-setup.md)
+  and [`docs/PARANOID_ADMIN_SETUP.md`](docs/PARANOID_ADMIN_SETUP.md) —
+  when updating `setup_wizard.py`, script generators, SPN Graph permissions, manual click paths, or user roles.
 - **Auth & Token Hook**:
   [`docs/adr/0002-dual-authentication-and-session-persistence.md`](docs/adr/0002-dual-authentication-and-session-persistence.md)
   and [`docs/adr/0008-browser-detection-and-credential-security.md`](docs/adr/0008-browser-detection-and-credential-security.md) —
@@ -80,5 +90,6 @@ Every code, template, or documentation change is complete only when all checks p
 .venv/bin/pytest
 .venv/bin/intunedoc lint-ste --directory docs
 awk 'length > 281 {print FILENAME ":" FNR ":" length; found=1} END {exit found}' \
-  README.md AGENTS.md CLAUDE.md .agents/skills/intune-visual-doc/SKILL.md docs/WORKFLOW.md docs/adr/*.md
+  README.md AGENTS.md CLAUDE.md .agents/skills/intune-visual-doc/SKILL.md \
+  docs/WORKFLOW.md docs/PARANOID_ADMIN_SETUP.md docs/adr/*.md setup/*.md
 ```

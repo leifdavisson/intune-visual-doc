@@ -59,6 +59,16 @@ READ_ONLY_PERMISSIONS = [
         "id": "b0afded3-358c-46d8-8326-63365cf57f70",
         "description": "Read administrator audit events and change records",
     },
+    {
+        "name": "DeviceManagementRBAC.Read.All",
+        "id": "4544c501-f5f2-441d-89e5-ea751d81b83d",
+        "description": "Read Intune role definitions, role assignments, and scope tags",
+    },
+    {
+        "name": "DeviceManagementManagedDevices.Read.All",
+        "id": "313fd57c-2656-430d-9b5f-0e136690736e",
+        "description": "Read managed device hardware, OS inventory, and compliance status",
+    },
 ]
 
 
@@ -201,7 +211,9 @@ $RolesToAssign = @(
     "DeviceManagementApps.Read.All",
     "DeviceManagementServiceConfig.Read.All",
     "Directory.Read.All",
-    "AuditLog.Read.All"
+    "AuditLog.Read.All",
+    "DeviceManagementRBAC.Read.All",
+    "DeviceManagementManagedDevices.Read.All"
 )
 
 foreach ($RoleName in $RolesToAssign) {{
@@ -371,6 +383,8 @@ For automated documentation, nightly CI/CD jobs, and configuration backups via M
 | Microsoft Graph | `DeviceManagementServiceConfig.Read.All` | Application | Read Intune service configurations |
 | Microsoft Graph | `Directory.Read.All` | Application | Read Entra groups, scope tags, and targets |
 | Microsoft Graph | `AuditLog.Read.All` | Application | Read administrative audit change events |
+| Microsoft Graph | `DeviceManagementRBAC.Read.All` | Application | Read Intune RBAC roles and scope tags |
+| Microsoft Graph | `DeviceManagementManagedDevices.Read.All` | Application | Read managed devices and compliance state |
 
 ### Automated Setup Scripts
 - **Linux / macOS / Cloud Shell (Azure CLI)**:
@@ -507,7 +521,9 @@ def interactive_setup_wizard():
             f"  • DeviceManagementApps.Read.All\n"
             f"  • DeviceManagementServiceConfig.Read.All\n"
             f"  • Directory.Read.All\n"
-            f"  • AuditLog.Read.All\n\n"
+            f"  • AuditLog.Read.All\n"
+            f"  • DeviceManagementRBAC.Read.All\n"
+            f"  • DeviceManagementManagedDevices.Read.All\n\n"
             f"[bold]NO Directory Admin Roles Required.[/bold]",
             border_style="cyan",
         ))

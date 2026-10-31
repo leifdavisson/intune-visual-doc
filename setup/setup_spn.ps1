@@ -54,7 +54,9 @@ $RolesToAssign = @(
     "DeviceManagementApps.Read.All",
     "DeviceManagementServiceConfig.Read.All",
     "Directory.Read.All",
-    "AuditLog.Read.All"
+    "AuditLog.Read.All",
+    "DeviceManagementRBAC.Read.All",
+    "DeviceManagementManagedDevices.Read.All"
 )
 
 foreach ($RoleName in $RolesToAssign) {

@@ -178,6 +178,9 @@ intunedoc setup --export-scripts
 intunedoc setup --test-spn
 ```
 
+Prefer manual portal configuration without running scripts? See the
+[Paranoid Administrator Manual Setup Guide](file:///home/leifdavisson/intune_docs/docs/PARANOID_ADMIN_SETUP.md) (`file:///home/leifdavisson/intune_docs/docs/PARANOID_ADMIN_SETUP.md`).
+
 #### Step 3: Authenticate & Hook Session
 Launches your selected browser profile, navigates to Intune, and captures your live Graph Bearer token:
 ```bash

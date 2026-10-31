@@ -58,7 +58,8 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
    .venv/bin/intunedoc diff --mock
    .venv/bin/intunedoc lint-ste --directory docs
    awk 'length > 281 {print FILENAME ":" FNR ":" length; found=1} END {exit found}' \
-     README.md AGENTS.md CLAUDE.md .agents/skills/intune-visual-doc/SKILL.md docs/WORKFLOW.md docs/adr/*.md
+     README.md AGENTS.md CLAUDE.md .agents/skills/intune-visual-doc/SKILL.md \
+     docs/WORKFLOW.md docs/PARANOID_ADMIN_SETUP.md docs/adr/*.md setup/*.md
    ```
 
 ## Output Contract

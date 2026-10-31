@@ -17,6 +17,8 @@ For automated documentation, nightly CI/CD jobs, and configuration backups via M
 | Microsoft Graph | `DeviceManagementServiceConfig.Read.All` | Application | Read Intune service configurations |
 | Microsoft Graph | `Directory.Read.All` | Application | Read Entra groups, scope tags, and targets |
 | Microsoft Graph | `AuditLog.Read.All` | Application | Read administrative audit change events |
+| Microsoft Graph | `DeviceManagementRBAC.Read.All` | Application | Read Intune RBAC roles and scope tags |
+| Microsoft Graph | `DeviceManagementManagedDevices.Read.All` | Application | Read managed devices and compliance state |
 
 ### Automated Setup Scripts
 - **Linux / macOS / Cloud Shell (Azure CLI)**:
@@ -44,3 +46,10 @@ For interactive and browser-hooked Playwright visual blade screenshot capture in
 ```powershell
 .\setup\setup_screenshot_user.ps1
 ```
+
+---
+
+## 3. Manual Click-by-Click Portal Setup
+
+Prefer manual portal configuration without automation scripts?
+Follow the complete guide: [Paranoid Administrator Manual Setup Guide](../docs/PARANOID_ADMIN_SETUP.md).

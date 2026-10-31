@@ -98,6 +98,12 @@ def cmd_run(args):
             console.print("[cyan]Fetching Settings Catalog and Configuration profiles...[/cyan]")
             policies.extend(collector.get_configuration_policies())
             policies.extend(collector.get_device_configurations())
+            console.print("[cyan]Fetching Endpoint Security policies (Intents)...[/cyan]")
+            policies.extend(collector.get_endpoint_security_policies())
+            console.print("[cyan]Fetching Device Management Scripts...[/cyan]")
+            policies.extend(collector.get_device_management_scripts())
+            console.print("[cyan]Fetching Enrollment Configurations...[/cyan]")
+            policies.extend(collector.get_device_enrollment_configurations())
         if "apps" in cats:
             console.print("[cyan]Fetching Managed Applications...[/cyan]")
             policies.extend(collector.get_managed_apps())
@@ -194,6 +200,9 @@ def cmd_diff(args):
                 collector.get_compliance_policies()
                 + collector.get_configuration_policies()
                 + collector.get_device_configurations()
+                + collector.get_endpoint_security_policies()
+                + collector.get_device_management_scripts()
+                + collector.get_device_enrollment_configurations()
                 + collector.get_managed_apps()
             )
         except Exception as e:
