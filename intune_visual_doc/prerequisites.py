@@ -258,8 +258,32 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
             token_status = "invalid"
             token_msg = "❌ Corrupted token cache (Step 2 required)"
 
-    # 4. Portal Session
+    # 4. Portal Session & Playwright Engine Check
     has_portal_session = os.path.exists(PORTAL_AUTH_FILE) and os.path.getsize(PORTAL_AUTH_FILE) > 50
+
+    playwright_ready = False
+    playwright_msg = ""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            # Check user's chosen browser channel first
+            b_id = cfg.get("browser_id", "msedge")
+            channel = "msedge" if b_id == "msedge" else ("chrome" if b_id == "chrome" else None)
+            try:
+                test_browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
+                test_browser.close()
+                playwright_ready = True
+                b_name = cfg.get("browser_label", "System Browser")
+                playwright_msg = f"🟢 Driver Ready (Using {b_name})"
+            except Exception:
+                # Fallback check bundled chromium
+                test_browser = p.chromium.launch(headless=True)
+                test_browser.close()
+                playwright_ready = True
+                playwright_msg = "🟢 Driver Ready (Playwright Chromium)"
+    except Exception as e:
+        playwright_ready = False
+        playwright_msg = "❌ Missing Browser Driver (Run 'playwright install chromium' or install Microsoft Edge)"
 
     return {
         "os_name": f"{platform.system()} ({platform.release()})",
@@ -274,6 +298,8 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
         "token_msg": token_msg,
         "can_skip_login": can_skip_login,
         "has_portal_session": has_portal_session,
+        "playwright_ready": playwright_ready,
+        "playwright_msg": playwright_msg,
         "auth_dir_secured": True,
     }
 
@@ -293,12 +319,19 @@ def display_prerequisites_table() -> Dict[str, Any]:
     table.add_row("1. Display Server", gui_state, gui_action)
 
     # Active Browser Profile
-    acc_text = f" ({audit['selected_account']})" if audit["selected_account"] else ""
-    table.add_row(
-        "2. Active Browser",
-        f"{audit['selected_browser']} [{audit['selected_profile']}]",
-        f"Selected Identity{acc_text}",
-    )
+    if audit["has_browsers"]:
+        acc_text = f" ({audit['selected_account']})" if audit["selected_account"] else ""
+        table.add_row(
+            "2. Active Browser",
+            f"{audit['selected_browser']} [{audit['selected_profile']}]",
+            f"Selected Identity{acc_text}",
+        )
+    else:
+        table.add_row(
+            "2. Active Browser",
+            "❌ No Supported Browser Found",
+            "Install Microsoft Edge or Google Chrome",
+        )
 
     # Security Permissions
     perm_status = "0700 (Owner Only)" if platform.system() != "Windows" else "Local ACL"
@@ -307,10 +340,13 @@ def display_prerequisites_table() -> Dict[str, Any]:
     # Session & Supersedence Status
     table.add_row("4. Graph Auth Token", audit["token_msg"], "Step 2 Gate" if not audit["can_skip_login"] else "Ready for Step 3")
 
+    # Playwright Driver Engine
+    table.add_row("5. Playwright Engine", audit["playwright_msg"], "Visual capture driver")
+
     # Portal Screenshot Session
     portal_state = "🟢 Session Cached" if audit["has_portal_session"] else "🟡 Not Established"
     portal_action = "Ready for visual screenshots" if audit["has_portal_session"] else "Run Step 2 to enable screenshots"
-    table.add_row("5. Portal Screenshot Engine", portal_state, portal_action)
+    table.add_row("6. Portal Screenshot State", portal_state, portal_action)
 
     console.print(table)
     return audit
