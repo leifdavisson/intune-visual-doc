@@ -127,17 +127,17 @@ def run_tui_menu() -> dict:
     render_banner()
 
     action = inquirer.select(
-        message="Select action to execute:",
+        message="Select workflow step to execute:",
         choices=[
-            {"name": "🚀 1. Run Documentation Generator", "value": "run"},
-            {"name": "🔑 2. Login & Authenticate (Graph + Playwright)", "value": "login"},
-            {"name": "🛠️  3. Prerequisites & Change Browser / Profile", "value": "prereqs"},
-            {"name": "📝 4. Run ASD-STE100 Linter on Documents", "value": "lint"},
-            {"name": "🔍 5. View Configuration Drift (Diff)", "value": "diff"},
-            {"name": "🗑️  6. Logout (Wipe Stored Credentials)", "value": "logout"},
+            {"name": "🛠️  1. Check Prerequisites & Select Browser / Profile", "value": "prereqs"},
+            {"name": "🔑 2. Authenticate & Hook Session (Graph + Portal)", "value": "login"},
+            {"name": "🚀 3. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
+            {"name": "📝 4. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
+            {"name": "🔍 5. Audit Configuration Drift (Diff)", "value": "diff"},
+            {"name": "🗑️  6. Logout (Purge Stored Credentials)", "value": "logout"},
             {"name": "❌ 7. Exit", "value": "exit"},
         ],
-        default="run",
+        default="prereqs",
     ).execute()
 
     if action == "logout":

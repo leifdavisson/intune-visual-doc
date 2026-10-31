@@ -5,36 +5,64 @@
 [![Standard: ASD--STE100](https://img.shields.io/badge/Standard-ASD--STE100-purple.svg)](https://asd-ste100.org/)
 [![Playwright](https://img.shields.io/badge/Visual-Playwright-45ba4b.svg)](https://playwright.dev/)
 
-**Intune Visual Doc** automates the generation of human-readable, screenshot-rich documentation for [Microsoft Intune](https://learn.microsoft.com/en-us/mem/intune/) tenants.
-It reads live configuration data, Settings Catalog trees, and group assignments via the [Microsoft Graph API](https://learn.microsoft.com/en-us/graph/overview), while concurrently using [Playwright](https://playwright.dev/) to capture visual screenshots of the **Overview** dashboard and **Properties** blades directly from the [Microsoft Intune Admin Center](https://intune.microsoft.com).
+**Intune Visual Doc** automates the generation of human-readable,
+screenshot-rich documentation for [Microsoft Intune](https://learn.microsoft.com/en-us/mem/intune/) tenants.
+It reads live configuration data, Settings Catalog trees, and group
+assignments via the [Microsoft Graph API](https://learn.microsoft.com/en-us/graph/overview), while concurrently
+using [Playwright](https://playwright.dev/) to capture visual screenshots of the **Overview** dashboard and
+**Properties** blades directly from the [Microsoft Intune Admin Center](https://intune.microsoft.com).
 
-All generated documentation adheres to the **[ASD-STE100 (Simplified Technical English)](https://asd-ste100.org/)** standard, making it accessible to both junior support technicians and senior auditors.
+All generated documentation adheres to the **[ASD-STE100](https://asd-ste100.org/)** standard,
+making it accessible to both junior support technicians and senior auditors.
 
 ---
 
 ## Architecture & Workflow
 
+[Open Full Workflow Specification](file:///home/leifdavisson/intune_docs/docs/WORKFLOW.md) (`file:///home/leifdavisson/intune_docs/docs/WORKFLOW.md`)
+
 ```mermaid
 flowchart TD
-    A["Admin / CI Pipeline"] --> B["intunedoc TUI / CLI"]
-    B --> C["Authentication Engine\n(MSAL Browser SSO / SPN)"]
-    C --> D["Microsoft Graph API Client\n(v1.0 & beta + Retry-After Backoff)"]
-    C --> E["Playwright Chromium Engine\n(Persistent .auth/ Session)"]
-    
-    D --> F["Extract Policies & Settings\n- Compliance Policies\n- Settings Catalog\n- Endpoint Security\n- Managed Apps\n- Admin Audit Events"]
-    D --> G["Target Resolver\n(Entra ID Group Names)"]
-    
-    E --> H["Intune Admin Center Portal\n- Overview Status Charts\n- Properties Configuration Blades"]
-    H --> I["Screenshots Storage\n(docs/assets/screenshots/)"]
-    
-    F --> J["Secret Sanitizer\n(Masks Keys & Passwords by Default)"]
-    G --> J
-    I --> K["ASD-STE100 Markdown Generator\n(Jinja2 Engine)"]
-    J --> K
-    
-    K --> L["Generated Documentation Tree\n- docs/README.md (Tenant Summary)\n- docs/compliance/\n- docs/configuration/\n- docs/apps/\n- docs/audit/ADMIN_AUDIT_LOG.md\n- docs/raw_json/ (Disaster Recovery Backups)"]
-    
-    L --> M["ASD-STE100 Linter & Diff\n(intunedoc lint-ste)"]
+    subgraph E1["Step 1: Prerequisites & Profile Selection"]
+        E1A["1.1 Scan OS and Browsers (Edge, Chrome, Chromium)"]
+        E1B["1.2 Parse Local State for User Profiles & Accounts"]
+        E1C["1.3 Lock Storage Directory to 0700 Permissions"]
+        E1A --> E1B --> E1C
+    end
+
+    subgraph E2["Step 2: Authentication & Token Interception"]
+        E2A["2.1 Launch Selected Browser Profile via Playwright"]
+        E2B["2.2 Intercept Live Graph Bearer Token from Network"]
+        E2C["2.3 Capture Portal Session Cookies to .auth/ (0600)"]
+        E2A --> E2B --> E2C
+    end
+
+    subgraph E3["Step 3: Extraction & Screenshot Capture"]
+        E3A["3.1 Extract Policies & Settings Catalog Trees"]
+        E3B["3.2 Resolve Entra ID Group IDs to Friendly Names"]
+        E3C["3.3 Capture Overview Charts & Properties Blades"]
+        E3D["3.4 Query Admin Audit Events for Modification Logs"]
+        E3A --> E3B --> E3C --> E3D
+    end
+
+    subgraph E4["Step 4: Sanitization & Document Generation"]
+        E4A["4.1 Sanitize Secret Keys, Wi-Fi PSKs, Passwords"]
+        E4B["4.2 Compute Hygiene Badges (Assigned, Baseline)"]
+        E4C["4.3 Render ASD-STE100 Markdown Tree & Raw JSON"]
+        E4A --> E4B --> E4C
+    end
+
+    subgraph E5["Step 5: Compliance & Maintenance"]
+        E5A["5.1 Run ASD-STE100 Readability & Voice Linter"]
+        E5B["5.2 Audit Configuration Drift Against JSON Backups"]
+        E5C["5.3 Purge Stored Credentials (intunedoc logout)"]
+        E5A --> E5B --> E5C
+    end
+
+    E1C --> E2A
+    E2C --> E3A
+    E3D --> E4A
+    E4C --> E5A
 ```
 
 ---
@@ -50,7 +78,8 @@ flowchart TD
    - Built-in automated validator: `intunedoc lint-ste`.
 3. **Audit History & Attributions**:
    - Queries `/deviceManagement/auditEvents` to record who created or updated each policy.
-   - Main documentation stamp shows generation date and includes direct links to the [Intune Portal Audit Log](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs).
+   - Main documentation stamp shows generation date and includes direct links to the
+     [Intune Portal Audit Log](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs).
 4. **Policy Health & Hygiene Badges**:
    - 🟢 `Status: Assigned` (Targeted to users/devices)
    - 🟡 `Status: Unassigned / Dormant` (Identifies inactive or orphan policies)
@@ -77,7 +106,9 @@ The tool scans standard operating system locations to discover Microsoft Edge, G
 It parses the `Local State` JSON file to display user profile names and corporate email addresses (`user@domain.com`) so admins can select their exact tenant identity before launching.
 
 ### 2. Strict Credential Protection
-- **Restricted Filesystem Permissions**: The `.auth/` directory is automatically locked to `0700` (`rwx------`), and all token files (`live_token.json`, `playwright_state.json`) are written with `0600` (`rw-------`) permissions so other workstation users cannot read your access tokens.
+- **Restricted Filesystem Permissions**: The `.auth/` directory is automatically locked to `0700` (`rwx------`).
+  All token files (`live_token.json`, `playwright_state.json`) are written with `0600` (`rw-------`) permissions
+  so other workstation users cannot read your access tokens.
 - **Git Exclusion**: `.auth/` and session tokens are strictly excluded by `.gitignore`.
 - **One-Command Credential Purge**: Run `intunedoc logout` or select menu option 6 to instantly delete all cached tokens and session cookies.
 
@@ -114,34 +145,49 @@ intunedoc tui
 
 The menu lets you select categories, toggle screenshots, set audit log retention days, and view the live CLI command before executing.
 
-### 3. Direct Command-Line Usage
+### 3. Chronological CLI Usage
 
-#### Step 1: Initial Login (Workstation Setup)
-Logs in via your browser, completes Entra ID MFA, and saves persistent session state into local `.auth/`:
+#### Step 1: Check Prerequisites & Select Profile
+Inspect detected browsers, accounts, and directory security:
+```bash
+intunedoc check-prereqs
+```
 
+#### Step 2: Authenticate & Hook Session
+Launches your selected browser profile, navigates to Intune, and captures your live Graph Bearer token:
 ```bash
 intunedoc login
 ```
 
-#### Step 2: Generate Documentation
-Extract live settings, snap portal screenshots, and write Markdown docs:
-
+#### Step 3: Generate Live Documentation
+Extract live settings, snap portal blade screenshots, and render ASD-STE100 Markdown:
 ```bash
 # Document all policies and audit logs
 intunedoc run
 
-# Document only compliance policies without browser screenshots
+# Document only compliance policies without screenshots
 intunedoc run --category compliance --no-screenshots
 
 # Run offline verification using sample school district data
 intunedoc run --mock
 ```
 
-#### Step 3: Verify ASD-STE100 Compliance
-Run the built-in technical language linter:
-
+#### Step 4: Verify ASD-STE100 Language Compliance
+Audit generated markdown documents for sentence length and active voice:
 ```bash
 intunedoc lint-ste --directory docs
+```
+
+#### Step 5: Audit Configuration Drift
+Compare live tenant settings against previous JSON backups:
+```bash
+intunedoc diff
+```
+
+#### Step 6: Logout & Purge Credentials
+Wipe all stored tokens, session cookies, and credentials:
+```bash
+intunedoc logout
 ```
 
 ---
