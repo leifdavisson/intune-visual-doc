@@ -106,7 +106,7 @@ def interactive_pick_browser_and_profile():
 
 def build_cli_command(categories, screenshots, mock, unsanitize, audit_days, output_dir):
     parts = ["intunedoc", "run"]
-    if categories and len(categories) < 6:
+    if categories and "all" not in categories and len(categories) < 6:
         parts.extend(["--category", ",".join(categories)])
     if not screenshots:
         parts.append("--no-screenshots")
@@ -237,6 +237,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     categories = inquirer.checkbox(
         message="Select Intune policy categories to document (matches Intune Admin Center):",
         choices=[
+            {"name": "🌟 ALL Categories (Full Tenant Documentation)", "value": "all", "enabled": True},
             {"name": "Devices > Compliance (Device compliance policies)", "value": "compliance", "enabled": True},
             {"name": "Devices > Configuration (Settings catalog & profile templates)", "value": "configuration", "enabled": True},
             {"name": "Endpoint security (Disk encryption, Antivirus, Firewall)", "value": "endpoint_security", "enabled": True},
@@ -246,6 +247,9 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         ],
         style=TUI_STYLE,
     ).execute()
+
+    if "all" in categories:
+        categories = ["all"]
 
     screenshots = inquirer.confirm(
         message="Capture automated Playwright visual screenshots?",
