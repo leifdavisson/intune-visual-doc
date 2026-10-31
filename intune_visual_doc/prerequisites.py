@@ -234,13 +234,22 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
     selected_p = cfg.get("profile_label", "Default")
     selected_acc = cfg.get("account_email", "")
 
-    # 3. Token & Supersedence check
+    # 3. Token & Supersedence check (SPN or Live User Token)
+    has_spn = bool(
+        (os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret"))
+        and (os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id"))
+    )
+
     token_status = "missing"
-    token_msg = "No token found (Step 2 required)"
+    token_msg = "No token found (Step 3 login or SPN required)"
     time_left_str = "0 mins"
     can_skip_login = False
 
-    if os.path.exists(LIVE_TOKEN_FILE):
+    if has_spn:
+        token_status = "spn"
+        token_msg = "🟢 Unattended SPN Active (intunedoc-reader-spn — Supersedes browser login)"
+        can_skip_login = True
+    elif os.path.exists(LIVE_TOKEN_FILE):
         try:
             with open(LIVE_TOKEN_FILE, "r", encoding="utf-8") as f:
                 tdata = json.load(f)
@@ -253,10 +262,10 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
                 can_skip_login = True
             else:
                 token_status = "expired"
-                token_msg = "🟡 Token expired (Step 2 required to refresh)"
+                token_msg = "🟡 Token expired (Step 3 required to refresh)"
         except Exception:
             token_status = "invalid"
-            token_msg = "❌ Corrupted token cache (Step 2 required)"
+            token_msg = "❌ Corrupted token cache (Step 3 required)"
 
     # 4. Portal Session & Playwright Engine Check
     has_portal_session = os.path.exists(PORTAL_AUTH_FILE) and os.path.getsize(PORTAL_AUTH_FILE) > 50
@@ -296,6 +305,7 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
         "selected_account": selected_acc,
         "token_status": token_status,
         "token_msg": token_msg,
+        "has_spn": has_spn,
         "can_skip_login": can_skip_login,
         "has_portal_session": has_portal_session,
         "playwright_ready": playwright_ready,

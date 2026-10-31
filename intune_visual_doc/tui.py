@@ -19,6 +19,7 @@ from .prerequisites import (
     wipe_all_credentials,
 )
 from .auth.portal_auth import authenticate_via_browser_hook
+from .setup_wizard import interactive_setup_wizard
 
 console = Console()
 
@@ -128,12 +129,13 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         message="Select workflow step to execute:",
         choices=[
             {"name": "🛠️  1. Check Prerequisites & Select Browser / Profile", "value": "prereqs"},
-            {"name": "🔑 2. Authenticate & Hook Session (Graph + Portal)", "value": "login"},
-            {"name": "🚀 3. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
-            {"name": "📝 4. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
-            {"name": "🔍 5. Audit Configuration Drift (Diff)", "value": "diff"},
-            {"name": "🗑️  6. Logout (Purge Stored Credentials)", "value": "logout"},
-            {"name": "❌ 7. Exit", "value": "exit"},
+            {"name": "⚙️  2. Setup Read-Only SPN & Screenshot Maker (Tenant Setup)", "value": "setup"},
+            {"name": "🔑 3. Authenticate & Hook Session (Graph + Portal)", "value": "login"},
+            {"name": "🚀 4. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
+            {"name": "📝 5. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
+            {"name": "🔍 6. Audit Configuration Drift (Diff)", "value": "diff"},
+            {"name": "🗑️  7. Logout (Purge Stored Credentials)", "value": "logout"},
+            {"name": "❌ 8. Exit", "value": "exit"},
         ],
         default="run" if audit["can_skip_login"] else "login",
     ).execute()
@@ -144,6 +146,10 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         if change:
             interactive_pick_browser_and_profile()
         return {"action": "prereqs_done"}
+
+    if action == "setup":
+        interactive_setup_wizard()
+        return {"action": "setup_done"}
 
     if action == "logout":
         confirm = inquirer.confirm(message="Are you sure you want to wipe all cached credentials?", default=False).execute()
@@ -175,10 +181,10 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     if action != "run":
         return {"action": action}
 
-    # Workflow Dependency Gate: Check if token exists before running Step 3
+    # Workflow Dependency Gate: Check if token exists before running Step 4
     if not audit["can_skip_login"]:
-        console.print("\n[bold yellow]⚠️  Missing Dependency Gate:[/bold yellow] No valid Microsoft Graph authentication token was found.")
-        do_auth = inquirer.confirm(message="Would you like to run Step 2 (Authenticate & Hook Session) now before generating docs?", default=True).execute()
+        console.print("\n[bold yellow]⚠️  Missing Dependency Gate:[/bold yellow] No valid Microsoft Graph authentication token or SPN was found.")
+        do_auth = inquirer.confirm(message="Would you like to run Step 3 (Authenticate & Hook Session) now before generating docs?", default=True).execute()
         if do_auth:
             res = authenticate_via_browser_hook(force_refresh=False)
             if not res or res.get("status") != "success":

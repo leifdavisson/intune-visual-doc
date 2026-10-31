@@ -30,39 +30,47 @@ flowchart TD
         E1A --> E1B --> E1C
     end
 
-    subgraph E2["Step 2: Authentication & Token Interception"]
-        E2A["2.1 Launch Selected Browser Profile via Playwright"]
-        E2B["2.2 Intercept Live Graph Bearer Token from Network"]
-        E2C["2.3 Capture Portal Session Cookies to .auth/ (0600)"]
+    subgraph E2["Step 2: Tenant Setup (Read-Only Identities)"]
+        E2A["2.1 Provision Unattended SPN (intunedoc-reader-spn)"]
+        E2B["2.2 Configure Screenshot Account (svc-intunedoc-screenshot)"]
+        E2C["2.3 Save Strict Read-Only Credentials to .auth/config.json"]
         E2A --> E2B --> E2C
     end
 
-    subgraph E3["Step 3: Extraction & Screenshot Capture"]
-        E3A["3.1 Extract Policies & Settings Catalog Trees"]
-        E3B["3.2 Resolve Entra ID Group IDs to Friendly Names"]
-        E3C["3.3 Capture Overview Charts & Properties Blades"]
-        E3D["3.4 Query Admin Audit Events for Modification Logs"]
-        E3A --> E3B --> E3C --> E3D
+    subgraph E3["Step 3: Authentication & Token Interception"]
+        E3A["3.1 Connect via Unattended SPN or Interactive Hook"]
+        E3B["3.2 Intercept Live Graph Bearer Token from Network"]
+        E3C["3.3 Capture Portal Session Cookies to .auth/ (0600)"]
+        E3A --> E3B --> E3C
     end
 
-    subgraph E4["Step 4: Sanitization & Document Generation"]
-        E4A["4.1 Sanitize Secret Keys, Wi-Fi PSKs, Passwords"]
-        E4B["4.2 Compute Hygiene Badges (Assigned, Baseline)"]
-        E4C["4.3 Render ASD-STE100 Markdown Tree & Raw JSON"]
-        E4A --> E4B --> E4C
+    subgraph E4["Step 4: Extraction & Screenshot Capture"]
+        E4A["4.1 Extract Policies & Settings Catalog Trees"]
+        E4B["4.2 Resolve Entra ID Group IDs to Friendly Names"]
+        E4C["4.3 Capture Overview Charts & Properties Blades"]
+        E4D["4.4 Query Admin Audit Events for Modification Logs"]
+        E4A --> E4B --> E4C --> E4D
     end
 
-    subgraph E5["Step 5: Compliance & Maintenance"]
-        E5A["5.1 Run ASD-STE100 Readability & Voice Linter"]
-        E5B["5.2 Audit Configuration Drift Against JSON Backups"]
-        E5C["5.3 Purge Stored Credentials (intunedoc logout)"]
+    subgraph E5["Step 5: Sanitization & Document Generation"]
+        E5A["5.1 Sanitize Secret Keys, Wi-Fi PSKs, Passwords"]
+        E5B["5.2 Compute Hygiene Badges (Assigned, Baseline)"]
+        E5C["5.3 Render ASD-STE100 Markdown Tree & Raw JSON"]
         E5A --> E5B --> E5C
+    end
+
+    subgraph E6["Step 6: Compliance & Maintenance"]
+        E6A["6.1 Run ASD-STE100 Readability & Voice Linter"]
+        E6B["6.2 Audit Configuration Drift Against JSON Backups"]
+        E6C["6.3 Purge Stored Credentials (intunedoc logout)"]
+        E6A --> E6B --> E6C
     end
 
     E1C --> E2A
     E2C --> E3A
-    E3D --> E4A
-    E4C --> E5A
+    E3C --> E4A
+    E4D --> E5A
+    E5C --> E6A
 ```
 
 ---
@@ -90,6 +98,10 @@ flowchart TD
 6. **Interactive Terminal User Interface (TUI)**:
    - Built with [Rich](https://github.com/Textualize/rich) and [InquirerPy](https://github.com/kazhala/InquirerPy).
    - Displays a live preview of the generated CLI command as options are toggled.
+7. **Dedicated Read-Only Identities & Tenant Write Boundary**:
+   - `intunedoc setup` is the **ONLY** workflow that makes changes to your tenant (creating App Registrations or guiding service account creation). All other workflows are 100% read-only.
+   - **Unattended SPN (`intunedoc-reader-spn`)**: Assigned strictly read-only Graph application permissions (`DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`, `DeviceManagementServiceConfig.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`).
+   - **Screenshot Maker Account (`svc-intunedoc-screenshot`)**: Dedicated cloud user with Entra role `Directory Readers` and Intune RBAC role `Read Only Operator`.
 
 ---
 
@@ -153,13 +165,26 @@ Inspect detected browsers, accounts, and directory security:
 intunedoc check-prereqs
 ```
 
-#### Step 2: Authenticate & Hook Session
+#### Step 2: Setup Read-Only Identities (Tenant Setup)
+Configure unattended Service Principal or dedicated screenshot maker service account:
+```bash
+# Launch interactive identity wizard
+intunedoc setup
+
+# Export ready-to-run Bash and PowerShell scripts to setup/
+intunedoc setup --export-scripts
+
+# Test configured SPN credentials against Microsoft Graph API
+intunedoc setup --test-spn
+```
+
+#### Step 3: Authenticate & Hook Session
 Launches your selected browser profile, navigates to Intune, and captures your live Graph Bearer token:
 ```bash
 intunedoc login
 ```
 
-#### Step 3: Generate Live Documentation
+#### Step 4: Generate Live Documentation
 Extract live settings, snap portal blade screenshots, and render ASD-STE100 Markdown:
 ```bash
 # Document all policies and audit logs
@@ -172,19 +197,19 @@ intunedoc run --category compliance --no-screenshots
 intunedoc run --mock
 ```
 
-#### Step 4: Verify ASD-STE100 Language Compliance
+#### Step 5: Verify ASD-STE100 Language Compliance
 Audit generated markdown documents for sentence length and active voice:
 ```bash
 intunedoc lint-ste --directory docs
 ```
 
-#### Step 5: Audit Configuration Drift
+#### Step 6: Audit Configuration Drift
 Compare live tenant settings against previous JSON backups:
 ```bash
 intunedoc diff
 ```
 
-#### Step 6: Logout & Purge Credentials
+#### Step 7: Logout & Purge Credentials
 Wipe all stored tokens, session cookies, and credentials:
 ```bash
 intunedoc logout
@@ -207,6 +232,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0008: Browser Detection and Credential Security](file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md`)
 - [ADR 0009: Default Prerequisites and Dependency Gates](file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md`)
 - [ADR 0010: Agent Documentation and Skill Architecture](file:///home/leifdavisson/intune_docs/docs/adr/0010-agent-documentation-and-skill-architecture.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0010-agent-documentation-and-skill-architecture.md`)
+- [ADR 0011: Read-Only Service Principal and Service Account Setup](file:///home/leifdavisson/intune_docs/docs/adr/0011-read-only-spn-and-service-account-setup.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0011-read-only-spn-and-service-account-setup.md`)
 
 ---
 
@@ -221,6 +247,8 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 
 - **Microsoft Intune**: [Official Documentation](https://learn.microsoft.com/en-us/mem/intune/) | [Admin Center](https://intune.microsoft.com)
 - **Microsoft Graph**: [Graph API Reference](https://learn.microsoft.com/en-us/graph/overview) | [Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer)
+- **Microsoft Entra ID**: [App Registration Guide](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) | [Graph Permissions Reference](https://learn.microsoft.com/en-us/graph/permissions-reference)
+- **Intune RBAC**: [Role-Based Access Control Guide](https://learn.microsoft.com/en-us/mem/intune/fundamentals/role-based-access-control)
 - **MSAL Python**: [Microsoft Authentication Library for Python](https://github.com/AzureAD/microsoft-authentication-library-for-python)
 - **Playwright**: [Playwright Python Documentation](https://playwright.dev/python/) | [GitHub Repository](https://github.com/microsoft/playwright-python)
 - **Rich & InquirerPy**: [Textualize/rich](https://github.com/Textualize/rich) | [InquirerPy](https://github.com/kazhala/InquirerPy)

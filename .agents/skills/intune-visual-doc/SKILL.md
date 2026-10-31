@@ -18,6 +18,7 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
 | Task Branch | Primary Files | Governing ADR |
 | :--- | :--- | :--- |
 | Add Intune category (Scripts, MAM, Autopilot) | `graph/collectors.py`, `visual/screenshot.py`, `generator/`, `cli.py`, `tui.py` | [ADR 0003](../../../docs/adr/0003-data-extraction-via-microsoft-graph.md), [ADR 0004](../../../docs/adr/0004-visual-capture-using-playwright.md) |
+| Setup read-only SPN or screenshot user | `setup_wizard.py`, `setup/`, `prerequisites.py`, `cli.py` | [ADR 0011](../../../docs/adr/0011-read-only-spn-and-service-account-setup.md) |
 | Debug browser auth or profiles | `prerequisites.py`, `auth/portal_auth.py`, `auth/graph_auth.py` | [ADR 0002](../../../docs/adr/0002-dual-authentication-and-session-persistence.md), [ADR 0008](../../../docs/adr/0008-browser-detection-and-credential-security.md) |
 | Edit templates, badges, redaction | `generator/templates/*.jinja2`, `generator/sanitizer.py`, `audit/ste_linter.py` | [ADR 0005](../../../docs/adr/0005-asd-ste100-documentation-standards.md), [ADR 0006](../../../docs/adr/0006-security-secret-sanitization-by-default.md) |
 | Audit configuration drift or offline mock | `audit/drift.py`, `mock_data/samples.py` | [ADR 0009](../../../docs/adr/0009-default-prerequisites-and-dependency-gates.md) |

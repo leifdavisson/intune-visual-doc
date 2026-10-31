@@ -216,6 +216,58 @@ def cmd_diff(args):
     console.print(table)
 
 
+def cmd_setup(args):
+    """Guide or automate creation of read-only SPN and screenshot service account."""
+    from .setup_wizard import (
+        display_setup_banner,
+        interactive_setup_wizard,
+        export_setup_scripts,
+        verify_spn_credentials,
+        generate_spn_bash_script,
+        generate_screenshot_user_script,
+    )
+    from .prerequisites import load_config
+
+    if getattr(args, "export_scripts", False):
+        display_setup_banner()
+        out_dir = getattr(args, "output_dir", "setup") or "setup"
+        files = export_setup_scripts(output_dir=out_dir)
+        console.print(f"[bold green]✅ Exported setup scripts to {out_dir}/ successfully:[/bold green]")
+        for f in files:
+            console.print(f"  • {f}")
+        return
+
+    if getattr(args, "test_spn", False):
+        display_setup_banner()
+        cfg = load_config()
+        t_id = os.environ.get("AZURE_TENANT_ID") or cfg.get("azure_tenant_id")
+        c_id = os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id")
+        sec = os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret")
+        if not t_id or not c_id or not sec:
+            console.print("[red]❌ SPN credentials missing. Run 'intunedoc setup' or set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET.[/red]")
+            return
+        console.print("[yellow]Testing configured SPN credentials against Microsoft Graph...[/yellow]")
+        res = verify_spn_credentials(t_id, c_id, sec)
+        if res.get("success"):
+            console.print(f"[bold green]🎉 Verified! Connected to tenant: {res.get('org_name')}[/bold green]")
+            console.print("[green]Strict read-only Graph permissions are active.[/green]\n")
+        else:
+            console.print(f"[red]❌ Verification failed:[/red] {res.get('error')}\n")
+        return
+
+    if getattr(args, "spn", False):
+        display_setup_banner()
+        console.print(generate_spn_bash_script())
+        return
+
+    if getattr(args, "screenshot_user", False):
+        display_setup_banner()
+        console.print(generate_screenshot_user_script())
+        return
+
+    interactive_setup_wizard()
+
+
 def _dispatch_tui(skip_prereqs: bool = False):
     """Launch TUI and execute selected workflow action."""
     from .tui import run_tui_menu
@@ -230,8 +282,10 @@ def _dispatch_tui(skip_prereqs: bool = False):
             audit_days = opts.get("audit_days", 30)
             output_dir = opts.get("output_dir", "docs")
         cmd_run(RunArgs())
-    elif act in ("login_done", "prereqs_done", "logout_done"):
+    elif act in ("login_done", "prereqs_done", "logout_done", "setup_done"):
         return
+    elif act == "setup":
+        cmd_setup(None)
     elif act == "login":
         cmd_login(None)
     elif act == "lint":
@@ -260,6 +314,14 @@ def main():
         description="Automated Intune documentation generator using Microsoft Graph & Playwright in ASD-STE100",
     )
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
+
+    # setup subcommand
+    setup_parser = subparsers.add_parser("setup", help="Configure read-only SPN or screenshot maker service account")
+    setup_parser.add_argument("--spn", action="store_true", help="Display bash creation script for intunedoc-reader-spn")
+    setup_parser.add_argument("--screenshot-user", action="store_true", help="Display PowerShell script for svc-intunedoc-screenshot")
+    setup_parser.add_argument("--export-scripts", action="store_true", help="Export setup scripts and documentation to setup/ directory")
+    setup_parser.add_argument("--output-dir", type=str, default="setup", help="Target directory for exported setup scripts (default: setup)")
+    setup_parser.add_argument("--test-spn", action="store_true", help="Test configured SPN credentials against Microsoft Graph API")
 
     # tui subcommand
     tui_parser = subparsers.add_parser("tui", help="Launch interactive Terminal User Interface (TUI)")
@@ -298,6 +360,8 @@ def main():
         _dispatch_tui(skip_prereqs=args.skip_prereqs)
     elif args.command == "check-prereqs":
         display_prerequisites_table()
+    elif args.command == "setup":
+        cmd_setup(args)
     elif args.command == "login":
         cmd_login(args)
     elif args.command == "logout":

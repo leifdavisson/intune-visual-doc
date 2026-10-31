@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 import msal
 
 from .portal_auth import get_live_graph_token, authenticate_via_browser_hook
+from ..prerequisites import load_config
 
 DEFAULT_CLIENT_ID = "d1ddf0e0-d672-4503-883e-346669d56585"
 DEFAULT_SCOPES = [
@@ -34,9 +35,10 @@ def get_graph_token(
     3. Browser network hook (launches Edge/Chrome and intercepts live Graph Bearer token).
     4. Device Code Flow fallback.
     """
-    c_id = client_id or os.environ.get("AZURE_CLIENT_ID", DEFAULT_CLIENT_ID)
-    t_id = tenant_id or os.environ.get("AZURE_TENANT_ID", "common")
-    secret = client_secret or os.environ.get("AZURE_CLIENT_SECRET")
+    cfg = load_config()
+    c_id = client_id or os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id") or DEFAULT_CLIENT_ID
+    t_id = tenant_id or os.environ.get("AZURE_TENANT_ID") or cfg.get("azure_tenant_id") or "common"
+    secret = client_secret or os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret")
     scope_list = scopes or DEFAULT_SCOPES
     authority = f"https://login.microsoftonline.com/{t_id}"
 

@@ -17,3 +17,4 @@ Every ADR follows Michael Nygard's format and obeys the [ASD-STE100](https://asd
 | [ADR 0008](0008-browser-detection-and-credential-security.md) | Browser Detection and Credential Security | Accepted | Editing cross-platform browser paths, `Local State` parsing, `.auth/` permissions, or `logout` |
 | [ADR 0009](0009-default-prerequisites-and-dependency-gates.md) | Default Prerequisites and Dependency Gates | Accepted | Changing startup dependency checks, `--skip-prereqs`, token supersedence, or app relationships |
 | [ADR 0010](0010-agent-documentation-and-skill-architecture.md) | Agent Documentation and Skill Architecture | Accepted | Updating `AGENTS.md`, `CLAUDE.md`, or `.agents/skills/intune-visual-doc/` |
+| [ADR 0011](0011-read-only-spn-and-service-account-setup.md) | Read-Only Service Principal and Service Account Setup | Accepted | Setting up `intunedoc-reader-spn`, `svc-intunedoc-screenshot`, Graph permissions, or `setup_wizard.py` |

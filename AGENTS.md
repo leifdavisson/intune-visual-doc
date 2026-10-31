@@ -23,11 +23,19 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
   Keep `unsanitize=False` as the default across all CLI and TUI paths.
   Pass both flattened `settings` rows and `raw` Graph payloads (`<details>` blocks and `docs/raw_json/*.json`)
   through `sanitize_value()`.
-- **Workflow Order (`tui.py`, `cli.py`)**:
+- **Workflow Order & Tenant Modification Boundary (`tui.py`, `cli.py`, `setup_wizard.py`)**:
   Run `display_prerequisites_table()` on TUI startup unless `--skip-prereqs` is set.
-  Preserve the 7-step chronological TUI sequence (`1. Prerequisites` -> `2. Authenticate` -> `3. Run Generator`
-  -> `4. Lint STE` -> `5. Drift Diff` -> `6. Logout` -> `7. Exit`).
+  `intunedoc setup` is the ONLY operation that creates or modifies objects in the Microsoft Entra tenant.
+  All other workflows are strictly 100% read-only.
+  Preserve the 8-step chronological TUI sequence (`1. Prerequisites` -> `2. Setup Read-Only Identities` ->
+  `3. Authenticate` -> `4. Run Generator` -> `5. Lint STE` -> `6. Drift Diff` -> `7. Logout` -> `8. Exit`).
   Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`).
+- **Read-Only Service Identities (`setup_wizard.py`, ADR 0011)**:
+  Configure `intunedoc-reader-spn` with strictly read-only Graph application roles
+  (`DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`,
+  `DeviceManagementServiceConfig.Read.All`, `Directory.Read.All`, `AuditLog.Read.All`).
+  Configure `svc-intunedoc-screenshot` with Entra `Directory Readers` and Intune RBAC `Read Only Operator`.
+  Never grant `.ReadWrite` roles, `Global Administrator`, or `Intune Administrator`.
 - **ASD-STE100 Prose (`docs/`, `generator/templates/*.jinja2`)**:
   Write active-voice prose with sentences of 25 words or fewer using approved vocabulary
   (`use`, `to`, `and`, `before`, `after`, `if`).
@@ -39,7 +47,10 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 Load only the ADR or skill matching your active task branch:
 
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
-  full decision table (`ADR 0001`–`ADR 0010`) when adding or amending architectural decisions.
+  full decision table (`ADR 0001`–`ADR 0011`) when adding or amending architectural decisions.
+- **Service Principals & Screenshot Service Account**:
+  [`docs/adr/0011-read-only-spn-and-service-account-setup.md`](docs/adr/0011-read-only-spn-and-service-account-setup.md) —
+  when updating `setup_wizard.py`, script generators, SPN Graph permissions, or dedicated user roles.
 - **Auth & Token Hook**:
   [`docs/adr/0002-dual-authentication-and-session-persistence.md`](docs/adr/0002-dual-authentication-and-session-persistence.md)
   and [`docs/adr/0008-browser-detection-and-credential-security.md`](docs/adr/0008-browser-detection-and-credential-security.md) —
