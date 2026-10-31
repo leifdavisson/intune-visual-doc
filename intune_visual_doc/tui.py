@@ -14,6 +14,7 @@ from .prerequisites import (
     load_config,
     save_config,
     display_prerequisites_table,
+    wipe_all_credentials,
 )
 from .auth.portal_auth import authenticate_via_browser_hook
 
@@ -133,12 +134,18 @@ def run_tui_menu() -> dict:
             {"name": "🛠️  3. Prerequisites & Change Browser / Profile", "value": "prereqs"},
             {"name": "📝 4. Run ASD-STE100 Linter on Documents", "value": "lint"},
             {"name": "🔍 5. View Configuration Drift (Diff)", "value": "diff"},
-            {"name": "❌ 6. Exit", "value": "exit"},
+            {"name": "🗑️  6. Logout (Wipe Stored Credentials)", "value": "logout"},
+            {"name": "❌ 7. Exit", "value": "exit"},
         ],
         default="run",
     ).execute()
 
-    if action == "prereqs":
+    if action == "logout":
+        confirm = inquirer.confirm(message="Are you sure you want to wipe all cached credentials?", default=False).execute()
+        if confirm:
+            wipe_all_credentials()
+            console.print("[bold green]✅ Stored credentials wiped successfully.[/bold green]\n")
+        return {"action": "logout_done"}
         display_prerequisites_table()
         change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True).execute()
         if change:

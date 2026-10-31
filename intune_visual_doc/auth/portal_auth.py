@@ -1,6 +1,7 @@
 """
 Playwright session manager and network interceptor for Microsoft Intune Admin Center.
 Hooks into browser network calls to extract live Microsoft Graph tokens and capture session state.
+Enforces strict filesystem permissions on all credential artifacts.
 """
 
 import os
@@ -11,7 +12,13 @@ import signal
 from typing import Optional, Dict, Any
 from playwright.sync_api import sync_playwright
 
-from ..prerequisites import load_config, save_config, scan_installed_browsers
+from ..prerequisites import (
+    load_config,
+    save_config,
+    scan_installed_browsers,
+    ensure_secure_auth_dir,
+    write_secure_file,
+)
 
 AUTH_DIR = os.path.join(os.getcwd(), ".auth")
 PORTAL_AUTH_FILE = os.path.join(AUTH_DIR, "playwright_state.json")
@@ -23,7 +30,7 @@ def get_live_graph_token() -> Optional[str]:
     """Retrieve saved live Graph Bearer token if valid and not expired."""
     if os.path.exists(LIVE_TOKEN_FILE):
         try:
-            with open(LIVE_TOKEN_FILE, "r") as f:
+            with open(LIVE_TOKEN_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             token = data.get("access_token")
             timestamp = data.get("timestamp", 0)
@@ -35,14 +42,14 @@ def get_live_graph_token() -> Optional[str]:
 
 
 def save_live_graph_token(token: str, account_hint: str = "") -> None:
-    """Save captured Graph Bearer token to .auth/live_token.json."""
-    os.makedirs(AUTH_DIR, exist_ok=True)
-    with open(LIVE_TOKEN_FILE, "w") as f:
-        json.dump({
-            "access_token": token,
-            "timestamp": time.time(),
-            "account_hint": account_hint,
-        }, f, indent=2)
+    """Save captured Graph Bearer token securely with 0600 permissions."""
+    ensure_secure_auth_dir()
+    payload = json.dumps({
+        "access_token": token,
+        "timestamp": time.time(),
+        "account_hint": account_hint,
+    }, indent=2)
+    write_secure_file(LIVE_TOKEN_FILE, payload)
 
 
 def has_valid_session() -> bool:
@@ -62,9 +69,9 @@ def authenticate_via_browser_hook(
     """
     Launch selected browser (e.g. Microsoft Edge) via Playwright.
     Hooks into network requests to capture live Graph Bearer token and portal session state.
-    Gracefully catches window close and user cancellations without raising unhandled exceptions.
+    Catches window close and user cancellations without raising unhandled exceptions.
     """
-    os.makedirs(AUTH_DIR, exist_ok=True)
+    ensure_secure_auth_dir()
 
     if not force_refresh and has_valid_session():
         token = get_live_graph_token()
@@ -114,7 +121,6 @@ def authenticate_via_browser_hook(
                 )
             except Exception as e:
                 print(f"[Warning] Direct persistent profile launch note: {e}")
-                # Fallback to standard context with browser channel
                 browser = p.chromium.launch(channel=channel, headless=False)
                 context = browser.new_context(viewport={"width": 1440, "height": 900})
 
@@ -134,7 +140,6 @@ def authenticate_via_browser_hook(
 
             page.on("request", on_request)
 
-            # Detect user closing window
             def on_close(p):
                 user_closed_window["flag"] = True
 
@@ -151,7 +156,6 @@ def authenticate_via_browser_hook(
             start_time = time.time()
 
             while not user_closed_window["flag"] and (time.time() - start_time < max_seconds):
-                # Check if page is closed
                 if page.is_closed():
                     user_closed_window["flag"] = True
                     break
@@ -172,10 +176,15 @@ def authenticate_via_browser_hook(
 
                 time.sleep(0.5)
 
-            # Save session if token was captured
+            # Save session state securely
             if captured_token["token"]:
                 try:
                     context.storage_state(path=PORTAL_AUTH_FILE)
+                    if os.name != "nt":
+                        try:
+                            os.chmod(PORTAL_AUTH_FILE, 0o600)
+                        except Exception:
+                            pass
                     print("  ✅ Intune Admin Center session cookies and storage state saved.")
                 except Exception:
                     pass
@@ -191,7 +200,6 @@ def authenticate_via_browser_hook(
     finally:
         signal.signal(signal.SIGINT, original_sigint)
 
-    # Check result
     if captured_token["token"]:
         return {
             "token": captured_token["token"],
@@ -199,7 +207,6 @@ def authenticate_via_browser_hook(
             "status": "success",
         }
 
-    # If the user simply closed the browser without logging in
     if user_closed_window["flag"]:
         return {
             "token": None,

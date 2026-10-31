@@ -64,6 +64,25 @@ flowchart TD
 
 ---
 
+## Multi-Platform Browser Detection & Credential Security
+
+When sharing and deploying `intune-visual-doc` across teams:
+
+### 1. Browser & Profile Discovery
+The tool scans standard operating system locations to discover Microsoft Edge, Google Chrome, and Chromium profiles:
+- **Linux**: `~/.config/microsoft-edge`, `~/.config/google-chrome`, `~/.config/chromium`
+- **macOS**: `~/Library/Application Support/Microsoft Edge`, `~/Library/Application Support/Google/Chrome`
+- **Windows**: `%LOCALAPPDATA%\Microsoft\Edge\User Data`, `%LOCALAPPDATA%\Google\Chrome\User Data`
+
+It parses the `Local State` JSON file to display user profile names and corporate email addresses (`user@domain.com`) so admins can select their exact tenant identity before launching.
+
+### 2. Strict Credential Protection
+- **Restricted Filesystem Permissions**: The `.auth/` directory is automatically locked to `0700` (`rwx------`), and all token files (`live_token.json`, `playwright_state.json`) are written with `0600` (`rw-------`) permissions so other workstation users cannot read your access tokens.
+- **Git Exclusion**: `.auth/` and session tokens are strictly excluded by `.gitignore`.
+- **One-Command Credential Purge**: Run `intunedoc logout` or select menu option 6 to instantly delete all cached tokens and session cookies.
+
+---
+
 ## Quickstart
 
 ### 1. Installation
@@ -138,6 +157,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0005: ASD-STE100 Documentation Standards](file:///home/leifdavisson/intune_docs/docs/adr/0005-asd-ste100-documentation-standards.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0005-asd-ste100-documentation-standards.md`)
 - [ADR 0006: Security Secret Sanitization by Default](file:///home/leifdavisson/intune_docs/docs/adr/0006-security-secret-sanitization-by-default.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0006-security-secret-sanitization-by-default.md`)
 - [ADR 0007: Interactive Terminal User Interface](file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md`)
+- [ADR 0008: Browser Detection and Credential Security](file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md`)
 
 ---
 

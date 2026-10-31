@@ -18,7 +18,7 @@ from .graph import GraphClient, PolicyCollector
 from .visual import ScreenshotManager
 from .generator import DocGenerator
 from .audit import lint_markdown_directory
-from .prerequisites import display_prerequisites_table
+from .prerequisites import display_prerequisites_table, wipe_all_credentials
 from .mock_data import get_mock_policies, get_mock_audit_events, setup_mock_screenshots
 
 console = Console()
@@ -30,6 +30,15 @@ def setup_graceful_interrupt():
         console.print("\n[yellow]⚠️  Process interrupted by user. Exiting cleanly...[/yellow]")
         sys.exit(0)
     signal.signal(signal.SIGINT, handler)
+
+
+def cmd_logout(args):
+    """Purge all stored tokens and sessions from .auth/."""
+    try:
+        wipe_all_credentials()
+        console.print("[bold green]✅ All cached credentials, tokens, and browser sessions purged successfully.[/bold green]")
+    except Exception as e:
+        console.print(f"[red]❌ Error purging credentials: {e}[/red]")
 
 
 def cmd_login(args):
@@ -215,6 +224,9 @@ def main():
     # login subcommand
     subparsers.add_parser("login", help="Authenticate with Microsoft Graph and Intune Admin Center via browser hook")
 
+    # logout subcommand
+    subparsers.add_parser("logout", help="Purge all cached credentials and sessions")
+
     # run subcommand
     run_parser = subparsers.add_parser("run", help="Extract policies and generate documentation")
     run_parser.add_argument("--category", type=str, default="", help="Comma-separated categories (compliance,configuration,apps)")
@@ -249,6 +261,8 @@ def main():
         display_prerequisites_table()
     elif args.command == "login":
         cmd_login(args)
+    elif args.command == "logout":
+        cmd_logout(args)
     elif args.command == "run":
         cmd_run(args)
     elif args.command == "lint-ste":
