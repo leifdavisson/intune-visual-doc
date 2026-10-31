@@ -16,6 +16,7 @@ from intune_visual_doc.setup_wizard import (
     generate_screenshot_user_script,
     export_setup_scripts,
     verify_spn_credentials,
+    detect_tenant_and_spn,
 )
 
 
@@ -110,3 +111,33 @@ def test_spn_credentials_success(mock_msal, mock_urlopen):
     assert result["success"]
     assert result["org_name"] == "Contoso School District"
     assert result["token"] == "mock-access-token-12345"
+
+
+@patch("urllib.request.urlopen")
+@patch("os.path.exists")
+def test_detect_tenant_and_spn_found(mock_exists, mock_urlopen):
+    """Verify auto-detection parses tenant ID and locates existing SPN."""
+    import json
+    import base64
+    mock_exists.return_value = True
+
+    # Construct mock JWT with tid
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(b'{"tid":"mock-tenant-guid-999","upn":"admin@contoso.com"}').decode().rstrip("=")
+    jwt = f"{header}.{payload}."
+
+    mock_token_data = json.dumps({"access_token": jwt})
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"value": [{"id": "obj-123", "appId": "app-456", "displayName": "intunedoc-reader-spn"}]}'
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = False
+    mock_urlopen.return_value = mock_resp
+
+    with patch("builtins.open", MagicMock(return_value=MagicMock(__enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value=mock_token_data)))))):
+        res = detect_tenant_and_spn()
+        assert res["tenant_id"] == "mock-tenant-guid-999"
+        assert res["user_upn"] == "admin@contoso.com"
+        assert res["existing_spn"] is not None
+        assert res["existing_spn"]["appId"] == "app-456"
+

@@ -141,13 +141,20 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     else:
         audit = evaluate_dependencies_and_supersedences()
 
+    if audit.get("can_skip_login"):
+        user_hint = audit.get("selected_account") or "Active Session"
+        console.print(
+            f"[bold green]✨ Fast Track:[/bold green] Active session ready ({user_hint})! "
+            "[dim]You can skip Step 2 & 3 and run Step 4 directly.[/dim]\n"
+        )
+
     # 2. Main workflow menu in exact chronological order
     action = inquirer.select(
         message="Select workflow step to execute:",
         choices=[
             {"name": "🛠️  1. Check Prerequisites & Select Browser / Profile", "value": "prereqs"},
-            {"name": "⚙️  2. Setup Read-Only SPN & Screenshot Maker (Tenant Setup)", "value": "setup"},
-            {"name": "🔑 3. Authenticate & Hook Session (Graph + Portal)", "value": "login"},
+            {"name": "⚙️  2. Setup Read-Only SPN & Screenshot Maker (Optional: Server / CI/CD)", "value": "setup"},
+            {"name": "🔑 3. Authenticate & Hook Session (Interactive Browser Login)", "value": "login"},
             {"name": "🚀 4. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
             {"name": "📝 5. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
             {"name": "🔍 6. Audit Configuration Drift (Diff)", "value": "diff"},

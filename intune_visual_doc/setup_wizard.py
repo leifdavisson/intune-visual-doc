@@ -24,6 +24,13 @@ TENANT_WRITE_WARNING = (
     "All other operations (generating documentation, screenshots, drift detection, STE audits) are [bold green]100% READ-ONLY[/bold green]."
 )
 
+SETUP_OPTIONAL_HINT = (
+    "[bold cyan]💡 NOTICE FOR JUNIOR ADMINISTRATORS:[/bold cyan]\n"
+    "This wizard is [bold green]OPTIONAL[/bold green]. You do not need an SPN for everyday use.\n"
+    "Your interactive browser login already provides full read access to generate documentation and screenshots.\n"
+    "Only configure an SPN if you need unattended automation on a scheduled server (cron) or CI/CD."
+)
+
 # Project Naming Convention
 DEFAULT_SPN_NAME = "intunedoc-reader-spn"
 DEFAULT_USER_NAME = "svc-intunedoc-screenshot"
@@ -467,6 +474,54 @@ def verify_spn_credentials(tenant_id: str, client_id: str, client_secret: str) -
         }
 
 
+def detect_tenant_and_spn() -> Dict[str, Any]:
+    """Auto-detect tenant ID and search for existing SPN in tenant via Graph API."""
+    import urllib.parse
+    from .prerequisites import load_config, LIVE_TOKEN_FILE
+    from .auth.portal_auth import parse_jwt_claims
+
+    res: Dict[str, Any] = {
+        "tenant_id": "",
+        "user_upn": "",
+        "existing_spn": None,
+        "token_available": False,
+    }
+    cfg = load_config()
+    res["tenant_id"] = cfg.get("azure_tenant_id", "")
+
+    if os.path.exists(LIVE_TOKEN_FILE):
+        try:
+            with open(LIVE_TOKEN_FILE, "r", encoding="utf-8") as f:
+                tdata = json.load(f)
+            token = tdata.get("access_token", "")
+            if token:
+                claims = parse_jwt_claims(token)
+                res["token_available"] = True
+                if not res["tenant_id"]:
+                    res["tenant_id"] = claims.get("tid", "")
+                res["user_upn"] = claims.get("upn", claims.get("unique_name", ""))
+
+                # Query Graph for existing SPN by display name
+                filter_str = urllib.parse.quote(f"displayName eq '{DEFAULT_SPN_NAME}'")
+                url = f"https://graph.microsoft.com/v1.0/applications?$filter={filter_str}"
+                req = urllib.request.Request(
+                    url,
+                    headers={"Authorization": f"Bearer {token}", "User-Agent": "IntuneVisualDoc/1.0"},
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        app_data = json.loads(resp.read().decode("utf-8"))
+                        apps = app_data.get("value", [])
+                        if apps:
+                            res["existing_spn"] = apps[0]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return res
+
+
 def display_setup_banner():
     """Print the setup header with clear warning panel."""
     console.print(
@@ -478,6 +533,7 @@ def display_setup_banner():
         )
     )
     console.print(Panel(TENANT_WRITE_WARNING, border_style="yellow"))
+    console.print(Panel(SETUP_OPTIONAL_HINT, border_style="cyan"))
 
 
 def interactive_setup_wizard():
@@ -487,6 +543,23 @@ def interactive_setup_wizard():
     from .tui import TUI_STYLE
 
     display_setup_banner()
+
+    # Auto-detect tenant and existing SPN upfront
+    detection = detect_tenant_and_spn()
+    prefill_app_id = ""
+
+    if detection.get("existing_spn"):
+        spn_info = detection["existing_spn"]
+        prefill_app_id = spn_info.get("appId", "")
+        console.print(
+            f"[bold green]🟢 Auto-detected existing SPN in tenant:[/bold green] "
+            f"[cyan]{spn_info.get('displayName')}[/cyan] (App ID: {prefill_app_id})\n"
+        )
+    elif detection.get("tenant_id"):
+        console.print(
+            f"[dim]Auto-detected Tenant ID:[/dim] [cyan]{detection['tenant_id']}[/cyan] "
+            f"[dim]({detection.get('user_upn', 'Active User')})[/dim]\n"
+        )
 
     choice = inquirer.select(
         message="Select identity to configure:",
@@ -513,33 +586,57 @@ def interactive_setup_wizard():
         return
 
     if choice == "spn":
-        console.print(Panel(
-            f"[bold cyan]🤖 Unattended Read-Only SPN Setup[/bold cyan]\n\n"
-            f"Recommended Name: [bold green]{DEFAULT_SPN_NAME}[/bold green]\n"
-            f"Role: Automated documentation and disaster recovery backups.\n"
-            f"Permissions: [bold yellow]Strictly READ-ONLY[/bold yellow] Microsoft Graph Application roles.\n\n"
-            f"Required Graph Permissions:\n"
-            f"  • DeviceManagementConfiguration.Read.All\n"
-            f"  • DeviceManagementApps.Read.All\n"
-            f"  • DeviceManagementServiceConfig.Read.All\n"
-            f"  • Directory.Read.All\n"
-            f"  • AuditLog.Read.All\n"
-            f"  • DeviceManagementRBAC.Read.All\n"
-            f"  • DeviceManagementManagedDevices.Read.All\n\n"
-            f"[bold]NO Directory Admin Roles Required.[/bold]",
-            border_style="cyan",
-        ))
+        if detection.get("existing_spn"):
+            existing_app = detection["existing_spn"]
+            prefill_app_id = existing_app.get("appId", "")
+            console.print(Panel(
+                f"[bold green]🟢 Existing SPN Found in Tenant![/bold green]\n\n"
+                f"Application Name: [bold]{existing_app.get('displayName')}[/bold]\n"
+                f"Application (Client) ID: [bold cyan]{prefill_app_id}[/bold cyan]\n"
+                f"Object ID: [dim]{existing_app.get('id')}[/dim]\n"
+                f"Tenant ID: [cyan]{detection.get('tenant_id')}[/cyan]\n\n"
+                f"The App Registration already exists in your Microsoft Entra tenant.\n"
+                f"To activate unattended runs, you only need to provide its Client Secret.\n"
+                f"[dim]Direct Link: https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps[/dim]",
+                border_style="green",
+            ))
+            spn_action = inquirer.select(
+                message="How would you like to proceed?",
+                choices=[
+                    {"name": f"🔑 Use Existing App ID ({prefill_app_id[:8]}...) and Enter Client Secret", "value": "enter"},
+                    {"name": "📁 Export scripts to ./setup/ to rotate secret or view manual instructions", "value": "export"},
+                    {"name": "⬅️  Cancel (Return to Menu)", "value": "cancel"},
+                ],
+                default="enter",
+                style=TUI_STYLE,
+            ).execute()
+        else:
+            tid_str = detection.get("tenant_id") or "Not detected yet"
+            tid_hint = f" (Auto-detected: [cyan]{detection['tenant_id']}[/cyan])" if detection.get("tenant_id") else ""
+            console.print(Panel(
+                f"[bold cyan]🤖 Unattended Read-Only SPN Setup[/bold cyan]\n\n"
+                f"Recommended Name: [bold green]{DEFAULT_SPN_NAME}[/bold green]\n"
+                f"Role: Automated documentation and disaster recovery backups.\n"
+                f"Tenant ID: [cyan]{tid_str}[/cyan]\n"
+                f"Status: [yellow]ℹ️  No existing SPN named '{DEFAULT_SPN_NAME}' was found in your tenant.[/yellow]\n\n"
+                f"[bold yellow]What are these credentials?[/bold yellow]\n"
+                f"  • [bold]Tenant ID:[/bold] Your organization's cloud account number{tid_hint}.\n"
+                f"  • [bold]Client ID:[/bold] The robot username (Application ID from Entra App Registration).\n"
+                f"  • [bold]Client Secret:[/bold] The robot password created under 'Certificates & secrets'.\n\n"
+                f"[dim]Portal URL: https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps[/dim]",
+                border_style="cyan",
+            ))
 
-        spn_action = inquirer.select(
-            message="How would you like to set up the SPN?",
-            choices=[
-                {"name": "📁 Export scripts to ./setup/ and view manual steps", "value": "export"},
-                {"name": "🔑 Enter Tenant ID, Client ID, and Client Secret now", "value": "enter"},
-                {"name": "⬅️  Cancel", "value": "cancel"},
-            ],
-            default="enter",
-            style=TUI_STYLE,
-        ).execute()
+            spn_action = inquirer.select(
+                message="How would you like to set up the SPN?",
+                choices=[
+                    {"name": "📁 Export scripts to ./setup/ (Recommended for Junior Admins — 100% automated)", "value": "export"},
+                    {"name": "🔑 Enter Tenant ID, Client ID, and Client Secret manually", "value": "enter"},
+                    {"name": "⬅️  Cancel (Return to Menu)", "value": "cancel"},
+                ],
+                default="export",
+                style=TUI_STYLE,
+            ).execute()
 
         if spn_action == "export":
             export_setup_scripts()
@@ -552,8 +649,15 @@ def interactive_setup_wizard():
 
     if choice == "test_spn":
         cfg = load_config()
-        curr_t_id = cfg.get("azure_tenant_id", "")
-        curr_c_id = cfg.get("azure_client_id", "")
+        curr_t_id = cfg.get("azure_tenant_id", "") or detection.get("tenant_id", "")
+        curr_c_id = cfg.get("azure_client_id", "") or prefill_app_id
+
+        console.print(Panel(
+            "[bold cyan]🔑 SPN Credential Entry[/bold cyan]\n"
+            "[dim]Enter credentials to authenticate unattended runs.[/dim]\n"
+            "[dim]Direct Link: https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps[/dim]",
+            border_style="cyan",
+        ))
 
         tenant_id = inquirer.text(
             message="Enter Microsoft Entra Tenant ID (GUID or domain):",
