@@ -1,6 +1,6 @@
 """
 Interactive Terminal User Interface (TUI) for Intune Visual Doc.
-Features system prerequisites checking, browser profile selection, and live CLI command previews.
+Features system prerequisites checking, interactive browser/profile picker, and live CLI command previews.
 """
 
 import sys
@@ -15,15 +15,16 @@ from .prerequisites import (
     save_config,
     display_prerequisites_table,
 )
+from .auth.portal_auth import authenticate_via_browser_hook
 
 console = Console()
 
 
 def render_banner():
     cfg = load_config()
-    b_label = cfg.get("browser_label", "Auto / Not Selected")
-    p_label = cfg.get("profile_label", "Default")
-    acc = cfg.get("account_email", "")
+    b_label = cfg.get("browser_label", "Microsoft Edge")
+    p_label = cfg.get("profile_label", "Profile 1")
+    acc = cfg.get("account_email", "ledavisson@kern.org")
 
     status_str = f"Active Browser: [bold green]{b_label}[/bold green] | Profile: [bold green]{p_label}[/bold green]"
     if acc:
@@ -40,42 +41,50 @@ def render_banner():
     )
 
 
-def configure_browser_and_profile():
-    """Interactive wizard to detect and select browser and profile."""
-    console.print(Panel("[bold cyan]🛠️  Prerequisites & Browser Profile Selection[/bold cyan]"))
+def interactive_pick_browser_and_profile():
+    """Interactive wizard to select browser and profile with clear defaults."""
+    console.print(Panel("[bold cyan]🛠️  Browser & Profile Selection[/bold cyan]"))
     browsers = scan_installed_browsers()
 
     if not browsers:
         console.print("[red]❌ No supported Chromium-based browsers (Edge or Chrome) detected on your system.[/red]")
         return None
 
+    cfg = load_config()
+    active_b_id = cfg.get("browser_id", "msedge")
+    active_p_dir = cfg.get("profile_dir", "Default")
+
     # Step 1: Select Browser
-    browser_choices = [
-        {"name": f"{b['name']} ({b['binary']})", "value": b}
-        for b in browsers
-    ]
+    browser_choices = []
+    default_browser_choice = browsers[0]
+    for b in browsers:
+        choice = {"name": f"{b['name']} ({b['binary']})", "value": b}
+        browser_choices.append(choice)
+        if b["id"] == active_b_id:
+            default_browser_choice = b
 
     selected_browser = inquirer.select(
         message="Select browser to use for Intune portal and network hooking:",
         choices=browser_choices,
-        default=browser_choices[0]["value"],
+        default=default_browser_choice,
     ).execute()
 
     # Step 2: Select Profile
     profile_choices = []
+    default_profile_choice = selected_browser["profiles"][0]
     for p in selected_browser["profiles"]:
         label = f"{p['name']} [{p['directory']}]"
         if p["email"]:
             label += f" - {p['email']}"
-        profile_choices.append({
-            "name": label,
-            "value": p,
-        })
+        choice = {"name": label, "value": p}
+        profile_choices.append(choice)
+        if p["directory"] == active_p_dir:
+            default_profile_choice = p
 
     selected_profile = inquirer.select(
         message=f"Select user profile in {selected_browser['name']}:",
         choices=profile_choices,
-        default=profile_choices[0]["value"],
+        default=default_profile_choice,
     ).execute()
 
     # Save to config
@@ -116,17 +125,12 @@ def run_tui_menu() -> dict:
     """Launch interactive prompt session and return chosen options."""
     render_banner()
 
-    cfg = load_config()
-    if not cfg.get("browser_id"):
-        console.print("[yellow]Notice: Initial setup required. Please select your browser and profile.[/yellow]")
-        cfg = configure_browser_and_profile()
-
     action = inquirer.select(
         message="Select action to execute:",
         choices=[
             {"name": "🚀 1. Run Documentation Generator", "value": "run"},
             {"name": "🔑 2. Login & Authenticate (Graph + Playwright)", "value": "login"},
-            {"name": "🛠️  3. Prerequisites & Select Browser / Profile", "value": "prereqs"},
+            {"name": "🛠️  3. Prerequisites & Change Browser / Profile", "value": "prereqs"},
             {"name": "📝 4. Run ASD-STE100 Linter on Documents", "value": "lint"},
             {"name": "🔍 5. View Configuration Drift (Diff)", "value": "diff"},
             {"name": "❌ 6. Exit", "value": "exit"},
@@ -136,10 +140,32 @@ def run_tui_menu() -> dict:
 
     if action == "prereqs":
         display_prerequisites_table()
-        change = inquirer.confirm(message="Would you like to change your browser/profile selection?", default=False).execute()
+        change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True).execute()
         if change:
-            configure_browser_and_profile()
+            interactive_pick_browser_and_profile()
         return {"action": "prereqs_done"}
+
+    if action == "login":
+        # Ask user if they'd like to verify or change browser/profile before launching
+        cfg = load_config()
+        p_label = cfg.get("profile_label", "Profile 1")
+        acc = cfg.get("account_email", "ledavisson@kern.org")
+        b_label = cfg.get("browser_label", "Microsoft Edge")
+
+        console.print(f"\n[cyan]Target:[/cyan] {b_label} with {p_label} ({acc})")
+        change = inquirer.confirm(message="Do you want to change the browser or profile for this login?", default=False).execute()
+        if change:
+            interactive_pick_browser_and_profile()
+
+        # Run login and catch cancellations cleanly
+        res = authenticate_via_browser_hook(force_refresh=True)
+        if not res or res.get("status") == "cancelled":
+            console.print("\n[yellow]⚠️  Browser closed without completing login. Authentication cancelled gracefully.[/yellow]\n")
+        elif res.get("status") == "success":
+            console.print("\n[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully![/bold green]\n")
+        else:
+            console.print(f"\n[red]Login notice: {res.get('message', 'Authentication incomplete')}[/red]\n")
+        return {"action": "login_done"}
 
     if action != "run":
         return {"action": action}
@@ -153,8 +179,6 @@ def run_tui_menu() -> dict:
             {"name": "Mobile & Managed Applications", "value": "apps", "enabled": True},
         ],
     ).execute()
-
-    use_mock = False  # User explicitly requested real tenant documentation
 
     screenshots = inquirer.confirm(
         message="Capture automated Playwright visual screenshots?",
@@ -178,7 +202,7 @@ def run_tui_menu() -> dict:
     cmd_preview = build_cli_command(
         categories=categories,
         screenshots=screenshots,
-        mock=use_mock,
+        mock=False,
         unsanitize=not sanitize,
         audit_days=audit_days,
         output_dir=output_dir,
@@ -200,7 +224,7 @@ def run_tui_menu() -> dict:
         "action": "run" if proceed else "cancel",
         "categories": categories,
         "screenshots": screenshots,
-        "mock": use_mock,
+        "mock": False,
         "unsanitize": not sanitize,
         "audit_days": int(audit_days),
         "output_dir": output_dir,

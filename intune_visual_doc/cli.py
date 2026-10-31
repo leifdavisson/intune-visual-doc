@@ -37,11 +37,16 @@ def cmd_login(args):
     console.print(Panel("[bold cyan]🔑 Intune Visual Doc - Authentication Wizard[/bold cyan]"))
     try:
         res = authenticate_via_browser_hook(force_refresh=True)
-        console.print("[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully![/bold green]")
-        console.print("[dim]Token and session saved in .auth/ for subsequent automated runs.[/dim]\n")
+        if not res or res.get("status") == "cancelled":
+            console.print("\n[yellow]⚠️  Browser closed without completing login. Authentication cancelled gracefully.[/yellow]\n")
+            return
+        elif res.get("status") == "success":
+            console.print("[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully![/bold green]")
+            console.print("[dim]Token and session saved in .auth/ for subsequent automated runs.[/dim]\n")
+        else:
+            console.print(f"[yellow]Authentication status: {res.get('message', 'Incomplete')}[/yellow]\n")
     except Exception as e:
-        console.print(f"[red]❌ Authentication failed: {e}[/red]")
-        sys.exit(1)
+        console.print(f"[red]❌ Authentication note: {e}[/red]")
 
 
 def cmd_run(args):
@@ -71,7 +76,7 @@ def cmd_run(args):
             client = GraphClient(token)
             collector = PolicyCollector(client)
         except Exception as e:
-            console.print(f"[red]Authentication failed: {e}[/red]")
+            console.print(f"[red]Authentication not ready: {e}[/red]")
             console.print("[dim]Hint: Run 'intunedoc login' to launch the browser and capture session.[/dim]")
             sys.exit(1)
 
@@ -181,6 +186,8 @@ def main():
                 output_dir = opts.get("output_dir", "docs")
             cmd_run(DummyArgs())
             return
+        elif act in ("login_done", "prereqs_done"):
+            return
         elif act == "login":
             cmd_login(None)
             return
@@ -188,8 +195,6 @@ def main():
             class DummyLintArgs:
                 directory = "docs"
             cmd_lint_ste(DummyLintArgs())
-            return
-        elif act == "prereqs_done":
             return
         elif act in ("exit", "cancel"):
             print("Operation cancelled.")

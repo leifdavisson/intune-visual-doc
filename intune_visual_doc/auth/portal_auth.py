@@ -27,7 +27,6 @@ def get_live_graph_token() -> Optional[str]:
                 data = json.load(f)
             token = data.get("access_token")
             timestamp = data.get("timestamp", 0)
-            # Tokens typically last 60-90 minutes (3600-5400s). Treat as valid for 50 minutes.
             if token and (time.time() - timestamp < 3000):
                 return token
         except Exception:
@@ -55,66 +54,75 @@ def has_valid_session() -> bool:
     )
 
 
-def authenticate_via_browser_hook(force_refresh: bool = False) -> Dict[str, Any]:
+def authenticate_via_browser_hook(
+    force_refresh: bool = False,
+    browser_id: Optional[str] = None,
+    profile_dir: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Launch selected browser (e.g. Microsoft Edge) via Playwright.
     Hooks into network requests to capture live Graph Bearer token and portal session state.
-    Exits immediately once authenticated or if the user closes the browser.
+    Gracefully catches window close and user cancellations without raising unhandled exceptions.
     """
     os.makedirs(AUTH_DIR, exist_ok=True)
 
     if not force_refresh and has_valid_session():
         token = get_live_graph_token()
         if token:
-            return {"token": token, "session_file": PORTAL_AUTH_FILE}
+            return {"token": token, "session_file": PORTAL_AUTH_FILE, "status": "success"}
 
     cfg = load_config()
-    browser_id = cfg.get("browser_id", "msedge")
-    profile_dir = cfg.get("profile_dir", "Default")
+    b_id = browser_id or cfg.get("browser_id", "msedge")
+    p_dir = profile_dir or cfg.get("profile_dir", "Default")
+    p_label = cfg.get("profile_label", p_dir)
+    acc = cfg.get("account_email", "")
 
     print("\n" + "=" * 70)
     print("🌐 Launching Browser for Microsoft Intune Authentication")
-    print(f"Browser: {browser_id.upper()} | Profile: {profile_dir}")
+    print(f"👉 Target Browser: {b_id.upper()} | Profile: {p_label} ({acc or 'Local'})")
     print("Hooking into network traffic to extract live Microsoft Graph tokens...")
     print("Complete sign-in or select your account in the browser window.")
-    print("The browser will close automatically once the Intune dashboard loads.")
+    print("If you close the browser window, login will cancel cleanly.")
     print("=" * 70 + "\n")
 
     captured_token = {"token": None, "user": ""}
-    should_exit = {"flag": False}
+    user_closed_window = {"flag": False}
 
     def signal_handler(sig, frame):
-        print("\n[!] User interrupted authentication. Closing browser cleanly...")
-        should_exit["flag"] = True
+        print("\n[!] Ctrl+C detected. Closing browser session cleanly...")
+        user_closed_window["flag"] = True
 
     original_sigint = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
         with sync_playwright() as p:
-            # Determine channel and executable
-            channel = "msedge" if browser_id == "msedge" else "chrome"
+            channel = "msedge" if b_id == "msedge" else "chrome"
             user_data_path = os.path.join(AUTH_DIR, "browser_profile")
             os.makedirs(user_data_path, exist_ok=True)
 
-            # Launch persistent context
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=user_data_path,
-                channel=channel,
-                headless=False,
-                viewport={"width": 1440, "height": 900},
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    f"--profile-directory={profile_dir}",
-                ],
-            )
+            try:
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=user_data_path,
+                    channel=channel,
+                    headless=False,
+                    viewport={"width": 1440, "height": 900},
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        f"--profile-directory={p_dir}",
+                    ],
+                )
+            except Exception as e:
+                print(f"[Warning] Direct persistent profile launch note: {e}")
+                # Fallback to standard context with browser channel
+                browser = p.chromium.launch(channel=channel, headless=False)
+                context = browser.new_context(viewport={"width": 1440, "height": 900})
 
             page = context.new_page()
 
             # Attach request interceptor
             def on_request(request):
                 url = request.url
-                # Look for calls to Graph API or Intune backend
                 if "graph.microsoft.com" in url or "manage.microsoft.com" in url:
                     auth_header = request.headers.get("authorization", "")
                     if auth_header.startswith("Bearer "):
@@ -126,69 +134,91 @@ def authenticate_via_browser_hook(force_refresh: bool = False) -> Dict[str, Any]
 
             page.on("request", on_request)
 
-            # Listen for page/window close by user
+            # Detect user closing window
             def on_close(p):
-                print("  [Browser window closed by user]")
-                should_exit["flag"] = True
+                user_closed_window["flag"] = True
 
             page.on("close", on_close)
 
-            # Navigate to Intune
+            # Navigate to Intune Admin Center
             try:
                 page.goto(INTUNE_PORTAL_URL, timeout=45000)
-            except Exception as e:
-                if not should_exit["flag"]:
-                    print(f"  [Navigation note: {e}]")
+            except Exception:
+                pass
 
-            # Poll for portal load and token capture
+            # Loop while user interacts with browser
             max_seconds = 300
             start_time = time.time()
 
-            while not should_exit["flag"] and (time.time() - start_time < max_seconds):
-                # If we're on intune.microsoft.com and have captured the token, we are done!
+            while not user_closed_window["flag"] and (time.time() - start_time < max_seconds):
+                # Check if page is closed
+                if page.is_closed():
+                    user_closed_window["flag"] = True
+                    break
+
                 current_url = page.url
                 if ("intune.microsoft.com" in current_url) and captured_token["token"]:
                     print("  ✅ Reached Microsoft Intune Admin Center dashboard!")
                     try:
-                        page.wait_for_load_state("networkidle", timeout=5000)
+                        page.wait_for_load_state("networkidle", timeout=4000)
                     except Exception:
                         pass
                     break
 
-                # If URL is in Intune but token not yet captured, give it a moment to trigger background Graph calls
                 if "intune.microsoft.com" in current_url and "login.microsoftonline.com" not in current_url:
-                    time.sleep(2)
+                    time.sleep(1.5)
                     if captured_token["token"]:
                         break
 
-                time.sleep(1)
+                time.sleep(0.5)
 
-            # Save Playwright session storage state
+            # Save session if token was captured
+            if captured_token["token"]:
+                try:
+                    context.storage_state(path=PORTAL_AUTH_FILE)
+                    print("  ✅ Intune Admin Center session cookies and storage state saved.")
+                except Exception:
+                    pass
+
             try:
-                context.storage_state(path=PORTAL_AUTH_FILE)
-                print("  ✅ Intune Admin Center session cookies and storage state saved.")
-            except Exception as e:
-                print(f"  [Warning: Could not save storage state: {e}]")
+                context.close()
+            except Exception:
+                pass
 
-            context.close()
-
+    except Exception as e:
+        if not user_closed_window["flag"]:
+            print(f"  [Browser session closed: {e}]")
     finally:
         signal.signal(signal.SIGINT, original_sigint)
 
-    if not captured_token["token"]:
-        # Check if saved file already had a valid token
-        existing = get_live_graph_token()
-        if existing:
-            return {"token": existing, "session_file": PORTAL_AUTH_FILE}
-        raise RuntimeError("Authentication incomplete. No Microsoft Graph token was captured from the browser session.")
+    # Check result
+    if captured_token["token"]:
+        return {
+            "token": captured_token["token"],
+            "session_file": PORTAL_AUTH_FILE,
+            "status": "success",
+        }
+
+    # If the user simply closed the browser without logging in
+    if user_closed_window["flag"]:
+        return {
+            "token": None,
+            "session_file": None,
+            "status": "cancelled",
+            "message": "Browser window was closed before login completed.",
+        }
 
     return {
-        "token": captured_token["token"],
-        "session_file": PORTAL_AUTH_FILE,
+        "token": None,
+        "session_file": None,
+        "status": "timeout",
+        "message": "Authentication timed out before completing sign-in.",
     }
 
 
 def ensure_portal_session(force_refresh: bool = False) -> str:
     """Ensure portal session is authenticated and return path to session file."""
     res = authenticate_via_browser_hook(force_refresh=force_refresh)
+    if not res or res.get("status") != "success":
+        raise RuntimeError(res.get("message", "Browser login did not complete."))
     return res["session_file"]
