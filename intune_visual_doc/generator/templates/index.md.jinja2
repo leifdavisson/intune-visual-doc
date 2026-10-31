@@ -1,0 +1,51 @@
+# Microsoft Intune Tenant Documentation
+
+> 🕒 **Documentation Stamp**: Generated on **{{ generated_at }}** by **{{ generator_user }}**
+>
+> 📋 **Admin Audit Integration**: [View Recent Admin Audit Logs](audit/ADMIN_AUDIT_LOG.md) | [Open in Intune Portal](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs)
+
+Welcome to the automated Microsoft Intune configuration reference for this tenant.
+This repository documents active settings, group assignments, and visual portal screenshots.
+
+---
+
+## Tenant Health & Hygiene Summary
+
+| Metric | Total Count | Description |
+| :--- | :--- | :--- |
+| **Total Policies Documented** | `{{ stats.total_policies }}` | Total active policies extracted across all categories. |
+| **Assigned Policies** | `🟢 {{ stats.assigned_policies }}` | Policies targeted to users or devices. |
+| **Unassigned / Dormant Policies** | `🟡 {{ stats.unassigned_policies }}` | Policies created without active target assignments. |
+| **Security Baselines** | `🛡️ {{ stats.baseline_policies }}` | Policies enforcing baseline security (BitLocker, Antivirus, etc.). |
+| **Secret Sanitization** | `{{ stats.sanitized_status }}` | Sensitive keys and credentials sanitized. |
+
+---
+
+## Documentation Categories
+
+{% for cat_id, cat in categories.items() %}
+### {{ cat.title }}
+
+- **Documentation**: [{{ cat.learn_title }}]({{ cat.learn_url }})
+- **Total Policies**: `{{ cat.policies | length }}`
+
+| Policy Name | Platform | Status | Last Modified | View Document |
+| :--- | :--- | :--- | :--- | :--- |
+{% for p in cat.policies %}
+| **{{ p.name }}** | {{ p.platform }} | {% if p.assignments %}`🟢 Assigned`{% else %}`🟡 Unassigned`{% endif %} | {{ p.last_modified or "N/A" }} | [Open Guide]({{ cat_id }}/{{ p.slug }}.md) |
+{% endfor %}
+
+{% endfor %}
+
+---
+
+## Direct Links & Resources
+
+- [Microsoft Intune Admin Center](https://intune.microsoft.com)
+- [Microsoft Learn Intune Documentation](https://learn.microsoft.com/en-us/mem/intune/)
+- [Microsoft Graph API Overview](https://learn.microsoft.com/en-us/graph/overview)
+- [Playwright Web Automation](https://playwright.dev/)
+- [ASD-STE100 Specification](https://asd-ste100.org/)
+
+---
+*Documentation generated automatically by [intune-visual-doc](https://github.com/leifdavisson/intune_docs).*

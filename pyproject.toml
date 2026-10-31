@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intune-visual-doc"
+version = "0.1.0"
+description = "Automated Microsoft Intune settings documentation with Microsoft Graph and Playwright visual screenshots in ASD-STE100"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [
+    { name = "Leif Davisson" }
+]
+dependencies = [
+    "msal>=1.31.0",
+    "requests>=2.31.0",
+    "playwright>=1.40.0",
+    "jinja2>=3.1.0",
+    "rich>=13.0.0",
+    "InquirerPy>=0.3.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+intunedoc = "intune_visual_doc.cli:main"
