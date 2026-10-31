@@ -204,6 +204,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0006: Security Secret Sanitization by Default](file:///home/leifdavisson/intune_docs/docs/adr/0006-security-secret-sanitization-by-default.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0006-security-secret-sanitization-by-default.md`)
 - [ADR 0007: Interactive Terminal User Interface](file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md`)
 - [ADR 0008: Browser Detection and Credential Security](file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md`)
+- [ADR 0009: Default Prerequisites and Dependency Gates](file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md) (`file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md`)
 
 ---
 

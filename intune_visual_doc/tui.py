@@ -1,6 +1,7 @@
 """
 Interactive Terminal User Interface (TUI) for Intune Visual Doc.
-Features system prerequisites checking, interactive browser/profile picker, and live CLI command previews.
+Always audits system prerequisites, browser profiles, and dependencies by default.
+Features intelligent workflow gates and live CLI command previews.
 """
 
 import sys
@@ -14,32 +15,12 @@ from .prerequisites import (
     load_config,
     save_config,
     display_prerequisites_table,
+    evaluate_dependencies_and_supersedences,
     wipe_all_credentials,
 )
 from .auth.portal_auth import authenticate_via_browser_hook
 
 console = Console()
-
-
-def render_banner():
-    cfg = load_config()
-    b_label = cfg.get("browser_label", "Microsoft Edge")
-    p_label = cfg.get("profile_label", "Profile 1")
-    acc = cfg.get("account_email", "ledavisson@kern.org")
-
-    status_str = f"Active Browser: [bold green]{b_label}[/bold green] | Profile: [bold green]{p_label}[/bold green]"
-    if acc:
-        status_str += f" ([cyan]{acc}[/cyan])"
-
-    console.print(
-        Panel.fit(
-            "[bold cyan]🛡️  Intune Visual Doc[/bold cyan]\n"
-            "[dim]Automated Intune Settings Documentation with Microsoft Graph & Playwright Screenshots[/dim]\n"
-            "[green]Standards: ASD-STE100 | License: GNU AGPLv3[/green]\n\n"
-            f"{status_str}",
-            border_style="cyan",
-        )
-    )
 
 
 def interactive_pick_browser_and_profile():
@@ -122,10 +103,27 @@ def build_cli_command(categories, screenshots, mock, unsanitize, audit_days, out
     return " ".join(parts)
 
 
-def run_tui_menu() -> dict:
-    """Launch interactive prompt session and return chosen options."""
-    render_banner()
+def run_tui_menu(skip_prereqs: bool = False) -> dict:
+    """
+    Launch interactive prompt session.
+    ALWAYS runs prerequisites and dependency audit first by default unless --skip-prereqs is passed.
+    """
+    console.print(
+        Panel.fit(
+            "[bold cyan]🛡️  Intune Visual Doc[/bold cyan]\n"
+            "[dim]Automated Intune Settings Documentation with Microsoft Graph & Playwright Screenshots[/dim]\n"
+            "[green]Standards: ASD-STE100 | License: GNU AGPLv3[/green]",
+            border_style="cyan",
+        )
+    )
 
+    # 1. ALWAYS run prerequisites and dependency matrix first by default
+    if not skip_prereqs:
+        audit = display_prerequisites_table()
+    else:
+        audit = evaluate_dependencies_and_supersedences()
+
+    # 2. Main workflow menu in exact chronological order
     action = inquirer.select(
         message="Select workflow step to execute:",
         choices=[
@@ -137,8 +135,15 @@ def run_tui_menu() -> dict:
             {"name": "🗑️  6. Logout (Purge Stored Credentials)", "value": "logout"},
             {"name": "❌ 7. Exit", "value": "exit"},
         ],
-        default="prereqs",
+        default="run" if audit["can_skip_login"] else "login",
     ).execute()
+
+    if action == "prereqs":
+        display_prerequisites_table()
+        change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True).execute()
+        if change:
+            interactive_pick_browser_and_profile()
+        return {"action": "prereqs_done"}
 
     if action == "logout":
         confirm = inquirer.confirm(message="Are you sure you want to wipe all cached credentials?", default=False).execute()
@@ -146,14 +151,8 @@ def run_tui_menu() -> dict:
             wipe_all_credentials()
             console.print("[bold green]✅ Stored credentials wiped successfully.[/bold green]\n")
         return {"action": "logout_done"}
-        display_prerequisites_table()
-        change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True).execute()
-        if change:
-            interactive_pick_browser_and_profile()
-        return {"action": "prereqs_done"}
 
     if action == "login":
-        # Ask user if they'd like to verify or change browser/profile before launching
         cfg = load_config()
         p_label = cfg.get("profile_label", "Profile 1")
         acc = cfg.get("account_email", "ledavisson@kern.org")
@@ -164,7 +163,6 @@ def run_tui_menu() -> dict:
         if change:
             interactive_pick_browser_and_profile()
 
-        # Run login and catch cancellations cleanly
         res = authenticate_via_browser_hook(force_refresh=True)
         if not res or res.get("status") == "cancelled":
             console.print("\n[yellow]⚠️  Browser closed without completing login. Authentication cancelled gracefully.[/yellow]\n")
@@ -176,6 +174,19 @@ def run_tui_menu() -> dict:
 
     if action != "run":
         return {"action": action}
+
+    # Workflow Dependency Gate: Check if token exists before running Step 3
+    if not audit["can_skip_login"]:
+        console.print("\n[bold yellow]⚠️  Missing Dependency Gate:[/bold yellow] No valid Microsoft Graph authentication token was found.")
+        do_auth = inquirer.confirm(message="Would you like to run Step 2 (Authenticate & Hook Session) now before generating docs?", default=True).execute()
+        if do_auth:
+            res = authenticate_via_browser_hook(force_refresh=False)
+            if not res or res.get("status") != "success":
+                console.print("[red]Authentication not completed. Cannot proceed with documentation generation.[/red]\n")
+                return {"action": "cancel"}
+        else:
+            console.print("[yellow]Cannot extract live tenant data without authentication. Run cancelled.[/yellow]\n")
+            return {"action": "cancel"}
 
     # Configuration for Run
     categories = inquirer.checkbox(

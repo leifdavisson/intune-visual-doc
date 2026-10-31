@@ -89,14 +89,37 @@ class PolicyCollector:
         return policies
 
     def get_managed_apps(self) -> List[Dict[str, Any]]:
-        """Fetch Managed Mobile Applications and assignments."""
+        """Fetch Managed Mobile Applications, assignments, dependencies, and supersedences."""
         raw = self.client.get_all_pages(
-            "/deviceAppManagement/mobileApps?$expand=assignments",
+            "/deviceAppManagement/mobileApps?$expand=assignments,relationships",
             beta=True
         )
         apps = []
         for a in raw:
             assignments = self.resolver.parse_assignments(a.get("assignments", []))
+            
+            # Parse app supersedences and dependencies if present
+            relationships = a.get("relationships", [])
+            superseded_apps = []
+            dependent_apps = []
+            for r in relationships:
+                r_type = r.get("@odata.type", "")
+                target_app_id = r.get("targetId", "")
+                if "supersedence" in r_type.lower():
+                    superseded_apps.append(target_app_id)
+                elif "dependency" in r_type.lower():
+                    dependent_apps.append(target_app_id)
+
+            settings = [
+                {"name": "Publisher", "value": a.get("publisher", "Not specified")},
+                {"name": "App Version", "value": a.get("displayVersion", "N/A")},
+                {"name": "Install Context", "value": a.get("installCommandLine", "Device/User")},
+            ]
+            if superseded_apps:
+                settings.append({"name": "Supersedes Apps", "value": ", ".join(superseded_apps)})
+            if dependent_apps:
+                settings.append({"name": "App Dependencies", "value": ", ".join(dependent_apps)})
+
             apps.append({
                 "id": a.get("id"),
                 "name": a.get("displayName", "Unnamed Application"),
@@ -107,11 +130,7 @@ class PolicyCollector:
                 "last_modified": a.get("lastModifiedDateTime"),
                 "created": a.get("createdDateTime"),
                 "assignments": assignments,
-                "settings": [
-                    {"name": "Publisher", "value": a.get("publisher", "Not specified")},
-                    {"name": "App Version", "value": a.get("displayVersion", "N/A")},
-                    {"name": "Install Context", "value": a.get("installCommandLine", "Device/User")},
-                ],
+                "settings": settings,
                 "raw": a,
             })
         return apps

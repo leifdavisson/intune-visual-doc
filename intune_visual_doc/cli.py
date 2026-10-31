@@ -183,7 +183,7 @@ def main():
     # If no arguments provided in interactive terminal, launch TUI
     if len(sys.argv) == 1 and sys.stdin.isatty():
         from .tui import run_tui_menu
-        opts = run_tui_menu()
+        opts = run_tui_menu(skip_prereqs=False)
         act = opts.get("action")
         if act == "run":
             class DummyArgs:
@@ -216,7 +216,8 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
 
     # tui subcommand
-    subparsers.add_parser("tui", help="Launch interactive Terminal User Interface (TUI)")
+    tui_parser = subparsers.add_parser("tui", help="Launch interactive Terminal User Interface (TUI)")
+    tui_parser.add_argument("--skip-prereqs", action="store_true", help="Skip running the prerequisites and dependency matrix on launch")
 
     # check-prereqs subcommand
     subparsers.add_parser("check-prereqs", help="Display system and browser prerequisites table")
@@ -247,7 +248,7 @@ def main():
 
     if args.command == "tui":
         from .tui import run_tui_menu
-        opts = run_tui_menu()
+        opts = run_tui_menu(skip_prereqs=args.skip_prereqs)
         if opts.get("action") == "run":
             class DummyArgs:
                 category = ",".join(opts.get("categories", []))
