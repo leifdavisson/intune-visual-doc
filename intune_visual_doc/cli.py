@@ -1,10 +1,11 @@
 """
 Command-line interface for Intune Visual Doc.
-Provides subcommands: login, run, diff, lint-ste, and interactive TUI.
+Provides subcommands: login, run, diff, lint-ste, check-prereqs, and interactive TUI.
 """
 
 import os
 import sys
+import signal
 import argparse
 from typing import List
 from rich.console import Console
@@ -12,35 +13,35 @@ from rich.table import Table
 from rich.panel import Panel
 
 from .auth import get_graph_token, ensure_portal_session
+from .auth.portal_auth import authenticate_via_browser_hook
 from .graph import GraphClient, PolicyCollector
 from .visual import ScreenshotManager
 from .generator import DocGenerator
 from .audit import lint_markdown_directory
+from .prerequisites import display_prerequisites_table
 from .mock_data import get_mock_policies, get_mock_audit_events, setup_mock_screenshots
 
 console = Console()
 
 
+def setup_graceful_interrupt():
+    """Trap SIGINT (Ctrl-C) to exit cleanly without python stack trace."""
+    def handler(sig, frame):
+        console.print("\n[yellow]⚠️  Process interrupted by user. Exiting cleanly...[/yellow]")
+        sys.exit(0)
+    signal.signal(signal.SIGINT, handler)
+
+
 def cmd_login(args):
-    """Authenticate with Microsoft Graph and Intune Admin Center."""
+    """Authenticate with Microsoft Graph and Intune Admin Center via browser hook."""
     console.print(Panel("[bold cyan]🔑 Intune Visual Doc - Authentication Wizard[/bold cyan]"))
-    console.print("[yellow]1. Authenticating to Microsoft Graph...[/yellow]")
     try:
-        token = get_graph_token()
-        console.print("[green]✅ Successfully acquired Microsoft Graph token![/green]")
+        res = authenticate_via_browser_hook(force_refresh=True)
+        console.print("[bold green]🎉 Live Microsoft Graph Bearer token and Intune Portal session acquired successfully![/bold green]")
+        console.print("[dim]Token and session saved in .auth/ for subsequent automated runs.[/dim]\n")
     except Exception as e:
-        console.print(f"[red]❌ Microsoft Graph authentication error: {e}[/red]")
+        console.print(f"[red]❌ Authentication failed: {e}[/red]")
         sys.exit(1)
-
-    console.print("[yellow]2. Establishing Playwright Intune Admin Center session...[/yellow]")
-    try:
-        ensure_portal_session(force_refresh=True)
-        console.print("[green]✅ Playwright browser session saved to .auth/playwright_state.json![/green]")
-    except Exception as e:
-        console.print(f"[red]❌ Portal browser login error: {e}[/red]")
-        sys.exit(1)
-
-    console.print("[bold green]🎉 All authentication prerequisites are ready.[/bold green]")
 
 
 def cmd_run(args):
@@ -53,10 +54,9 @@ def cmd_run(args):
     screenshots_map = {}
 
     if args.mock:
-        console.print("[bold magenta]🧪 Running in Mock Mode with sample KCSOS district data...[/bold magenta]")
+        console.print("[bold magenta]🧪 Running in Mock Mode with sample school district data...[/bold magenta]")
         policies = get_mock_policies()
         audit_events = get_mock_audit_events()
-        # Filter categories if requested
         if args.category:
             cats = [c.strip().lower() for c in args.category.split(",")]
             policies = [p for p in policies if p.get("category") in cats]
@@ -64,7 +64,7 @@ def cmd_run(args):
         screenshots_map = setup_mock_screenshots(output_dir, policies)
         console.print(f"[green]Loaded {len(policies)} sample policies and mock visual screenshots.[/green]")
     else:
-        # Live Graph Extraction
+        # Live Graph Extraction via Browser Network Hook or SPN
         console.print("[yellow]Connecting to Microsoft Graph API...[/yellow]")
         try:
             token = get_graph_token()
@@ -72,7 +72,7 @@ def cmd_run(args):
             collector = PolicyCollector(client)
         except Exception as e:
             console.print(f"[red]Authentication failed: {e}[/red]")
-            console.print("[dim]Hint: Run 'intunedoc login' or use '--mock' for offline testing.[/dim]")
+            console.print("[dim]Hint: Run 'intunedoc login' to launch the browser and capture session.[/dim]")
             sys.exit(1)
 
         cats = [c.strip().lower() for c in args.category.split(",")] if args.category else ["compliance", "configuration", "apps"]
@@ -164,13 +164,14 @@ def cmd_lint_ste(args):
 
 
 def main():
+    setup_graceful_interrupt()
+
     # If no arguments provided in interactive terminal, launch TUI
     if len(sys.argv) == 1 and sys.stdin.isatty():
         from .tui import run_tui_menu
         opts = run_tui_menu()
         act = opts.get("action")
         if act == "run":
-            # Synthesize args for run
             class DummyArgs:
                 category = ",".join(opts.get("categories", []))
                 no_screenshots = not opts.get("screenshots", True)
@@ -188,6 +189,8 @@ def main():
                 directory = "docs"
             cmd_lint_ste(DummyLintArgs())
             return
+        elif act == "prereqs_done":
+            return
         elif act in ("exit", "cancel"):
             print("Operation cancelled.")
             return
@@ -201,8 +204,11 @@ def main():
     # tui subcommand
     subparsers.add_parser("tui", help="Launch interactive Terminal User Interface (TUI)")
 
+    # check-prereqs subcommand
+    subparsers.add_parser("check-prereqs", help="Display system and browser prerequisites table")
+
     # login subcommand
-    subparsers.add_parser("login", help="Authenticate with Microsoft Graph and Intune Admin Center")
+    subparsers.add_parser("login", help="Authenticate with Microsoft Graph and Intune Admin Center via browser hook")
 
     # run subcommand
     run_parser = subparsers.add_parser("run", help="Extract policies and generate documentation")
@@ -234,6 +240,8 @@ def main():
                 audit_days = opts.get("audit_days", 30)
                 output_dir = opts.get("output_dir", "docs")
             cmd_run(DummyArgs())
+    elif args.command == "check-prereqs":
+        display_prerequisites_table()
     elif args.command == "login":
         cmd_login(args)
     elif args.command == "run":
