@@ -6,6 +6,7 @@ Features intelligent workflow gates and live CLI command previews.
 
 import sys
 from InquirerPy import inquirer
+from InquirerPy.utils import get_style
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -22,6 +23,20 @@ from .auth.portal_auth import authenticate_via_browser_hook
 from .setup_wizard import interactive_setup_wizard
 
 console = Console()
+
+# Highlighted menu line styling: BOLD and vibrant cyan for maximum visibility
+TUI_STYLE = get_style(
+    {
+        "questionmark": "bold #00ffff",
+        "answer": "bold #00ff7f",
+        "input": "#00ffff",
+        "question": "bold",
+        "instruction": "#abb2bf",
+        "pointer": "bold #00ffff",
+        "checkbox": "bold #00ff7f",
+        "marker": "bold #ffb86c",
+    }
+)
 
 
 def interactive_pick_browser_and_profile():
@@ -50,6 +65,7 @@ def interactive_pick_browser_and_profile():
         message="Select browser to use for Intune portal and network hooking:",
         choices=browser_choices,
         default=default_browser_choice,
+        style=TUI_STYLE,
     ).execute()
 
     # Step 2: Select Profile
@@ -68,6 +84,7 @@ def interactive_pick_browser_and_profile():
         message=f"Select user profile in {selected_browser['name']}:",
         choices=profile_choices,
         default=default_profile_choice,
+        style=TUI_STYLE,
     ).execute()
 
     # Save to config
@@ -138,11 +155,12 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             {"name": "❌ 8. Exit", "value": "exit"},
         ],
         default="run" if audit["can_skip_login"] else "login",
+        style=TUI_STYLE,
     ).execute()
 
     if action == "prereqs":
         display_prerequisites_table()
-        change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True).execute()
+        change = inquirer.confirm(message="Would you like to select your browser and profile?", default=True, style=TUI_STYLE).execute()
         if change:
             interactive_pick_browser_and_profile()
         return {"action": "prereqs_done"}
@@ -152,7 +170,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         return {"action": "setup_done"}
 
     if action == "logout":
-        confirm = inquirer.confirm(message="Are you sure you want to wipe all cached credentials?", default=False).execute()
+        confirm = inquirer.confirm(message="Are you sure you want to wipe all cached credentials?", default=False, style=TUI_STYLE).execute()
         if confirm:
             wipe_all_credentials()
             console.print("[bold green]✅ Stored credentials wiped successfully.[/bold green]\n")
@@ -165,7 +183,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         b_label = cfg.get("browser_label", "Microsoft Edge")
 
         console.print(f"\n[cyan]Target:[/cyan] {b_label} with {p_label} ({acc or 'Default'})")
-        change = inquirer.confirm(message="Do you want to change the browser or profile for this login?", default=False).execute()
+        change = inquirer.confirm(message="Do you want to change the browser or profile for this login?", default=False, style=TUI_STYLE).execute()
         if change:
             interactive_pick_browser_and_profile()
 
@@ -179,6 +197,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             proceed_now = inquirer.confirm(
                 message="Would you like to proceed directly to Step 4 (Run Documentation Generator) now?",
                 default=True,
+                style=TUI_STYLE,
             ).execute()
             if not proceed_now:
                 return {"action": "login_done"}
@@ -193,7 +212,11 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     # Workflow Dependency Gate: Check if token exists before running Step 4
     if not audit["can_skip_login"]:
         console.print("\n[bold yellow]⚠️  Missing Dependency Gate:[/bold yellow] No valid Microsoft Graph authentication token or SPN was found.")
-        do_auth = inquirer.confirm(message="Would you like to run Step 3 (Authenticate & Hook Session) now before generating docs?", default=True).execute()
+        do_auth = inquirer.confirm(
+            message="Would you like to run Step 3 (Authenticate & Hook Session) now before generating docs?",
+            default=True,
+            style=TUI_STYLE,
+        ).execute()
         if do_auth:
             res = authenticate_via_browser_hook(force_refresh=False)
             if not res or res.get("status") != "success":
@@ -211,16 +234,19 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             {"name": "Configuration Profiles & Settings Catalog", "value": "configuration", "enabled": True},
             {"name": "Mobile & Managed Applications", "value": "apps", "enabled": True},
         ],
+        style=TUI_STYLE,
     ).execute()
 
     screenshots = inquirer.confirm(
         message="Capture automated Playwright visual screenshots?",
         default=True,
+        style=TUI_STYLE,
     ).execute()
 
     sanitize = inquirer.confirm(
         message="Sanitize sensitive credentials, SSIDs, and keys by default?",
         default=True,
+        style=TUI_STYLE,
     ).execute()
 
     audit_days = inquirer.number(
@@ -228,6 +254,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         default=30,
         min_allowed=1,
         max_allowed=180,
+        style=TUI_STYLE,
     ).execute()
 
     output_dir = "docs"
@@ -251,7 +278,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         )
     )
 
-    proceed = inquirer.confirm(message="Ready to execute documentation run?", default=True).execute()
+    proceed = inquirer.confirm(message="Ready to execute documentation run?", default=True, style=TUI_STYLE).execute()
 
     return {
         "action": "run" if proceed else "cancel",

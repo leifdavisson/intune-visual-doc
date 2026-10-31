@@ -46,10 +46,3 @@ For interactive and browser-hooked Playwright visual blade screenshot capture in
 ```powershell
 .\setup\setup_screenshot_user.ps1
 ```
-
----
-
-## 3. Manual Click-by-Click Portal Setup
-
-Prefer manual portal configuration without automation scripts?
-Follow the complete guide: [Paranoid Administrator Manual Setup Guide](../docs/PARANOID_ADMIN_SETUP.md).

@@ -484,6 +484,7 @@ def interactive_setup_wizard():
     """Run interactive setup wizard in TUI."""
     from InquirerPy import inquirer
     from .prerequisites import load_config, save_config
+    from .tui import TUI_STYLE
 
     display_setup_banner()
 
@@ -497,6 +498,7 @@ def interactive_setup_wizard():
             {"name": "⬅️  5. Return to Main Workflow", "value": "back"},
         ],
         default="spn",
+        style=TUI_STYLE,
     ).execute()
 
     if choice == "back":
@@ -536,6 +538,7 @@ def interactive_setup_wizard():
                 {"name": "⬅️  Cancel", "value": "cancel"},
             ],
             default="enter",
+            style=TUI_STYLE,
         ).execute()
 
         if spn_action == "export":
@@ -555,15 +558,18 @@ def interactive_setup_wizard():
         tenant_id = inquirer.text(
             message="Enter Microsoft Entra Tenant ID (GUID or domain):",
             default=curr_t_id,
+            style=TUI_STYLE,
         ).execute().strip()
 
         client_id = inquirer.text(
             message=f"Enter Application / Client ID for {DEFAULT_SPN_NAME}:",
             default=curr_c_id,
+            style=TUI_STYLE,
         ).execute().strip()
 
         client_secret = inquirer.secret(
             message="Enter Client Secret value:",
+            style=TUI_STYLE,
         ).execute().strip()
 
         if not tenant_id or not client_id or not client_secret:
@@ -578,6 +584,7 @@ def interactive_setup_wizard():
             save_confirm = inquirer.confirm(
                 message="Save these credentials securely to .auth/config.json (0600 permissions)?",
                 default=True,
+                style=TUI_STYLE,
             ).execute()
             if save_confirm:
                 cfg["azure_tenant_id"] = tenant_id
@@ -605,6 +612,7 @@ def interactive_setup_wizard():
         export_user = inquirer.confirm(
             message="Export setup/setup_screenshot_user.ps1 script now?",
             default=True,
+            style=TUI_STYLE,
         ).execute()
 
         if export_user:
