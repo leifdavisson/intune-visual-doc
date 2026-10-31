@@ -1,11 +1,25 @@
 # Microsoft Intune Tenant Documentation
 
-> 🕒 **Documentation Stamp**: Generated on **2026-10-31 19:37:18 UTC** by **Intune Administrator**
+> 🕒 **Documentation Stamp**: Generated on **2026-10-31 21:08:33 UTC** by **Intune Administrator**
+>
+> 🚨 **Hygiene & Alerts**: [View Active Warnings & Administrator Actions](TENANT_WARNINGS.md)
 >
 > 📋 **Admin Audit Integration**: [View Recent Admin Audit Logs](audit/ADMIN_AUDIT_LOG.md) | [Open in Intune Portal](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs)
 
 Welcome to the automated Microsoft Intune configuration reference for this tenant.
 This repository documents active settings, group assignments, and visual portal screenshots.
+
+---
+
+## Table of Contents
+
+- [Tenant Health & Hygiene Summary](#tenant-health--hygiene-summary)
+- [🚨 Active Tenant Warnings & Admin Actions](TENANT_WARNINGS.md)
+- [📋 Administrative Audit Events (Past 30 Days)](audit/ADMIN_AUDIT_LOG.md)
+- [Device Compliance Policies](#device-compliance-policies)
+- [Configuration Profiles & Settings Catalog](#configuration-profiles--settings-catalog)
+- [Mobile & Managed Applications](#mobile--managed-applications)
+- [Direct Links & External Resources](#direct-links--resources)
 
 ---
 
@@ -15,7 +29,7 @@ This repository documents active settings, group assignments, and visual portal 
 | :--- | :--- | :--- |
 | **Total Policies Documented** | `5` | Total active policies extracted across all categories. |
 | **Assigned Policies** | `🟢 4` | Policies targeted to users or devices. |
-| **Unassigned / Dormant Policies** | `🟡 1` | Policies created without active target assignments. |
+| **Unassigned / Dormant Policies** | `🟡 1 (Action Needed)` | Policies created without active target assignments. [View Warnings](TENANT_WARNINGS.md). |
 | **Security Baselines** | `🛡️ 1` | Policies enforcing baseline security (BitLocker, Antivirus, etc.). |
 | **Secret Sanitization** | `Enabled (Secrets Masked)` | Sensitive keys and credentials sanitized. |
 

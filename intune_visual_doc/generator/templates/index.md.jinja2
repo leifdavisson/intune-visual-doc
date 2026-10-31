@@ -2,10 +2,24 @@
 
 > 🕒 **Documentation Stamp**: Generated on **{{ generated_at }}** by **{{ generator_user }}**
 >
+> 🚨 **Hygiene & Alerts**: [View Active Warnings & Administrator Actions](TENANT_WARNINGS.md)
+>
 > 📋 **Admin Audit Integration**: [View Recent Admin Audit Logs](audit/ADMIN_AUDIT_LOG.md) | [Open in Intune Portal](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs)
 
 Welcome to the automated Microsoft Intune configuration reference for this tenant.
 This repository documents active settings, group assignments, and visual portal screenshots.
+
+---
+
+## Table of Contents
+
+- [Tenant Health & Hygiene Summary](#tenant-health--hygiene-summary)
+- [🚨 Active Tenant Warnings & Admin Actions](TENANT_WARNINGS.md)
+- [📋 Administrative Audit Events (Past {{ audit_days }} Days)](audit/ADMIN_AUDIT_LOG.md)
+{% for cat_id, cat in categories.items() if cat.policies %}
+- [{{ cat.title }}](#{{ cat.title | lower | replace(' ', '-') | replace('&', '') | replace('(', '') | replace(')', '') }})
+{% endfor %}
+- [Direct Links & External Resources](#direct-links--resources)
 
 ---
 
@@ -15,7 +29,7 @@ This repository documents active settings, group assignments, and visual portal 
 | :--- | :--- | :--- |
 | **Total Policies Documented** | `{{ stats.total_policies }}` | Total active policies extracted across all categories. |
 | **Assigned Policies** | `🟢 {{ stats.assigned_policies }}` | Policies targeted to users or devices. |
-| **Unassigned / Dormant Policies** | `🟡 {{ stats.unassigned_policies }}` | Policies created without active target assignments. |
+| **Unassigned / Dormant Policies** | `{% if stats.unassigned_policies > 0 %}🟡 {{ stats.unassigned_policies }} (Action Needed){% else %}🟢 0{% endif %}` | Policies created without active target assignments. [View Warnings](TENANT_WARNINGS.md). |
 | **Security Baselines** | `🛡️ {{ stats.baseline_policies }}` | Policies enforcing baseline security (BitLocker, Antivirus, etc.). |
 | **Secret Sanitization** | `{{ stats.sanitized_status }}` | Sensitive keys and credentials sanitized. |
 
@@ -23,7 +37,7 @@ This repository documents active settings, group assignments, and visual portal 
 
 ## Documentation Categories
 
-{% for cat_id, cat in categories.items() %}
+{% for cat_id, cat in categories.items() if cat.policies %}
 ### {{ cat.title }}
 
 - **Documentation**: [{{ cat.learn_title }}]({{ cat.learn_url }})

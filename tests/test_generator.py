@@ -20,10 +20,47 @@ def test_generator_renders_markdown_tree(tmp_path):
     )
 
     assert os.path.exists(output_dir / "README.md")
+    assert os.path.exists(output_dir / "TENANT_WARNINGS.md")
     assert os.path.exists(output_dir / "audit" / "ADMIN_AUDIT_LOG.md")
     assert summary["stats"]["total_policies"] == 5
     assert summary["stats"]["assigned_policies"] == 4
     assert summary["stats"]["unassigned_policies"] == 1
+
+
+def test_generator_handles_null_targets_and_names(tmp_path):
+    """Verify generator is null-safe when audit events or policies contain None."""
+    output_dir = tmp_path / "test_null_safety"
+    generator = DocGenerator(output_dir=str(output_dir), unsanitize=False)
+
+    policies = [
+        {
+            "id": "null-pol-1",
+            "name": None,
+            "category": "configuration",
+            "assignments": [],
+            "settings": [],
+            "raw": {},
+        }
+    ]
+    audit_events = [
+        {
+            "id": "ev-1",
+            "activity": None,
+            "target": None,
+            "actor": "admin@contoso.com",
+            "timestamp": "2026-10-31T12:00:00Z",
+            "status": "success",
+        }
+    ]
+
+    summary = generator.render_all(
+        policies=policies,
+        audit_events=audit_events,
+        generator_user="Test Admin",
+    )
+    assert os.path.exists(output_dir / "README.md")
+    assert os.path.exists(output_dir / "TENANT_WARNINGS.md")
+    assert summary["stats"]["total_policies"] == 1
 
 
 def test_generator_sanitizes_raw_json_by_default(tmp_path):

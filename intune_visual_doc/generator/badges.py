@@ -21,8 +21,8 @@ def get_hygiene_badges(policy: Dict[str, Any]) -> List[str]:
         badges.append("`🟡 Status: Unassigned / Dormant`")
 
     # 2. Security Baseline badge
-    name_lower = policy.get("name", "").lower()
-    desc_lower = policy.get("description", "").lower()
+    name_lower = (policy.get("name") or "").lower()
+    desc_lower = (policy.get("description") or "").lower()
     is_baseline = any(keyword in name_lower or keyword in desc_lower for keyword in [
         "baseline", "bitlocker", "encryption", "antivirus", "firewall", "defender", "compliance"
     ])
@@ -30,7 +30,7 @@ def get_hygiene_badges(policy: Dict[str, Any]) -> List[str]:
         badges.append("`🛡️ Security Baseline: Recommended`")
 
     # 3. Platform badge
-    platform = policy.get("platform", "Universal")
+    platform = str(policy.get("platform") or "Universal")
     if "windows" in platform.lower():
         badges.append("`💻 Platform: Windows 10/11`")
     elif "ios" in platform.lower():
@@ -54,8 +54,8 @@ def get_learn_link(category: str, policy_name: str) -> Dict[str, str]:
     """
     Return relevant Microsoft Learn reference documentation links based on policy category.
     """
-    cat_lower = category.lower()
-    name_lower = policy_name.lower()
+    cat_lower = str(category or "").lower()
+    name_lower = str(policy_name or "").lower()
 
     if "compliance" in cat_lower:
         return {

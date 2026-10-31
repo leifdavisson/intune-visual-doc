@@ -50,15 +50,18 @@ class DocGenerator:
         # Attribute last modified actor from audit events where possible
         actor_map = {}
         for ev in audit_events:
-            t_name = ev.get("target", "").lower()
-            if t_name and t_name not in actor_map:
-                actor_map[t_name] = ev.get("actor")
+            target_raw = ev.get("target")
+            if target_raw and isinstance(target_raw, str):
+                t_name = target_raw.strip().lower()
+                if t_name and t_name not in actor_map:
+                    actor_map[t_name] = ev.get("actor")
 
         for p in policies:
-            p_name = p.get("name", "").lower()
-            if p_name in actor_map:
+            name_raw = p.get("name")
+            p_name = name_raw.strip().lower() if (name_raw and isinstance(name_raw, str)) else ""
+            if p_name and p_name in actor_map:
                 p["last_modified_by"] = actor_map[p_name]
-            p["slug"] = slugify(p.get("name", "policy"))
+            p["slug"] = slugify(name_raw or "policy")
             # Sanitize settings
             p["settings"] = sanitize_settings_list(p.get("settings", []), unsanitize=self.unsanitize)
 
@@ -74,6 +77,24 @@ class DocGenerator:
                 "title": "Configuration Profiles & Settings Catalog",
                 "learn_title": "Microsoft Learn: Settings Catalog",
                 "learn_url": "https://learn.microsoft.com/en-us/mem/intune/configuration/settings-catalog",
+                "policies": [],
+            },
+            "endpoint_security": {
+                "title": "Endpoint Security Policies",
+                "learn_title": "Microsoft Learn: Endpoint Security",
+                "learn_url": "https://learn.microsoft.com/en-us/mem/intune/protect/endpoint-security",
+                "policies": [],
+            },
+            "scripts": {
+                "title": "Device Management Scripts",
+                "learn_title": "Microsoft Learn: Device Scripts",
+                "learn_url": "https://learn.microsoft.com/en-us/mem/intune/apps/intune-management-extension",
+                "policies": [],
+            },
+            "enrollment": {
+                "title": "Enrollment Configurations (Autopilot)",
+                "learn_title": "Microsoft Learn: Device Enrollment",
+                "learn_url": "https://learn.microsoft.com/en-us/mem/intune/enrollment/",
                 "policies": [],
             },
             "apps": {
@@ -144,20 +165,46 @@ class DocGenerator:
         with open(os.path.join(audit_dir, "ADMIN_AUDIT_LOG.md"), "w", encoding="utf-8") as f:
             f.write(rendered_audit)
 
+        # Compute tenant warnings and hygiene alerts
+        unassigned_policies = [p for p in policies if not p.get("assignments")]
+        high_impact_events = [
+            ev for ev in audit_events
+            if any(kw in str(ev.get("activity") or "").lower() for kw in ("delete", "remove", "wipe", "retire", "create", "update", "assign"))
+        ]
+
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Render Tenant Warnings & Administrator Actions document
+        warnings_tmpl = self.env.get_template("warnings.md.jinja2")
+        rendered_warnings = warnings_tmpl.render(
+            generated_at=now_str,
+            generator_user=generator_user,
+            audit_days=audit_days,
+            unassigned_policies=unassigned_policies,
+            high_impact_events=high_impact_events,
+        )
+        warnings_path = os.path.join(self.output_dir, "TENANT_WARNINGS.md")
+        with open(warnings_path, "w", encoding="utf-8") as f:
+            f.write(rendered_warnings)
+
         # Render Main Index
+        def _is_baseline(p_dict):
+            n = (p_dict.get("name") or "").lower()
+            return "baseline" in n or "bitlocker" in n
+
         stats = {
             "total_policies": len(policies),
             "assigned_policies": sum(1 for p in policies if p.get("assignments")),
-            "unassigned_policies": sum(1 for p in policies if not p.get("assignments")),
-            "baseline_policies": sum(1 for p in policies if "baseline" in p.get("name", "").lower() or "bitlocker" in p.get("name", "").lower()),
+            "unassigned_policies": len(unassigned_policies),
+            "baseline_policies": sum(1 for p in policies if _is_baseline(p)),
             "sanitized_status": "Enabled (Secrets Masked)" if not self.unsanitize else "Disabled (Raw Values Shown)",
         }
 
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         index_tmpl = self.env.get_template("index.md.jinja2")
         rendered_index = index_tmpl.render(
             generated_at=now_str,
             generator_user=generator_user,
+            audit_days=audit_days,
             stats=stats,
             categories=categories_dict,
         )
@@ -168,6 +215,7 @@ class DocGenerator:
 
         return {
             "index_path": index_path,
+            "warnings_path": warnings_path,
             "total_policies": len(policies),
             "stats": stats,
         }
