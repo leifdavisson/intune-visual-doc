@@ -58,6 +58,25 @@ def is_graph_token(jwt_token: str) -> Tuple[bool, str]:
     return False, upn
 
 
+def is_intune_token(jwt_token: str) -> Tuple[bool, str]:
+    """Check if JWT token audience is Microsoft Graph and contains DeviceManagement permissions."""
+    claims = parse_jwt_claims(jwt_token)
+    aud = str(claims.get("aud", ""))
+    upn = claims.get("upn") or claims.get("unique_name") or ""
+    scp = str(claims.get("scp", ""))
+    roles = claims.get("roles", [])
+
+    is_graph = "graph.microsoft.com" in aud or "00000003-0000-0000-c000-000000000000" in aud
+    if not is_graph:
+        return False, upn
+
+    has_intune_scope = "DeviceManagement" in scp or any("DeviceManagement" in r for r in roles)
+    if has_intune_scope:
+        return True, upn
+
+    return False, upn
+
+
 def extract_tokens_from_page(page) -> List[str]:
     """Extract cached MSAL tokens from browser sessionStorage and localStorage."""
     try:
@@ -90,8 +109,8 @@ def extract_tokens_from_page(page) -> List[str]:
         return []
 
 
-def get_live_graph_token() -> Optional[str]:
-    """Retrieve saved live Graph Bearer token if valid and not expired."""
+def get_live_graph_token(require_intune: bool = True) -> Optional[str]:
+    """Retrieve saved live Graph Bearer token if valid, not expired, and has Intune scopes."""
     if os.path.exists(LIVE_TOKEN_FILE):
         try:
             with open(LIVE_TOKEN_FILE, "r", encoding="utf-8") as f:
@@ -99,7 +118,14 @@ def get_live_graph_token() -> Optional[str]:
             token = data.get("access_token")
             timestamp = data.get("timestamp", 0)
             if token and (time.time() - timestamp < 3000):
-                return token
+                if require_intune:
+                    valid_intune, _ = is_intune_token(token)
+                    if valid_intune:
+                        return token
+                else:
+                    valid_graph, _ = is_graph_token(token)
+                    if valid_graph:
+                        return token
         except Exception:
             pass
     return None
@@ -151,19 +177,18 @@ def authenticate_via_browser_hook(
     console.print(Panel(
         f"[bold cyan]🌐 Microsoft Intune Interactive Authentication[/bold cyan]\n\n"
         f"Browser: [bold]{b_id.upper()}[/bold] | Profile: [bold]{p_label}[/bold] ({acc or 'Local'})\n\n"
-        f"[bold yellow]📌 Sign-In Instructions & Feedback Loop:[/bold yellow]\n"
-        f" 1. In the browser window, enter your password and approve MFA if prompted.\n"
-        f" 2. If prompted 'Stay signed in?', choose 'Yes' or 'No'.\n"
-        f" 3. [bold green]DO NOT manually close the browser window.[/bold green] As soon as you reach the\n"
-        f"    Intune Admin Center, this tool will detect your session, save tokens, and\n"
-        f"    [bold green]AUTOMATICALLY CLOSE THE BROWSER[/bold green] for you!\n\n"
-        f"[dim]Tip: If you reached the dashboard and the window does not close after a few seconds,\n"
-        f"simply click any blade (e.g. Devices or Tenant admin) or press [ENTER] in this terminal.[/dim]",
+        f"[bold yellow]📌 Live Breadcrumbs & Feedback Loop:[/bold yellow]\n"
+        f" 1. [bold]Sign In:[/bold] Enter password and approve MFA if prompted.\n"
+        f" 2. [bold]Target Blade:[/bold] Loading Intune Compliance blade directly.\n"
+        f" 3. [bold]Automatic Capture:[/bold] When the policy blade loads, this tool intercepts\n"
+        f"    the Intune DeviceManagement token and [bold green]AUTOMATICALLY CLOSES[/bold green] the browser!\n\n"
+        f"[bold green]👉 Breadcrumb:[/bold green] If the blade is visible and the browser does not close,\n"
+        f"click 'Devices' on the left menu or press [bold cyan][ENTER][/bold cyan] in this terminal.",
         title="Interactive Authentication Wizard",
         border_style="cyan",
     ))
 
-    captured_token = {"token": None, "user": ""}
+    captured_token = {"token": None, "user": "", "seen_shell": False}
     user_closed_window = {"flag": False}
 
     def signal_handler(sig, frame):
@@ -195,9 +220,10 @@ def authenticate_via_browser_hook(
                 browser = p.chromium.launch(channel=channel, headless=False)
                 context = browser.new_context(viewport={"width": 1440, "height": 900})
 
-            page = context.new_page()
+            # Reuse existing page to avoid extra blank tab
+            page = context.pages[0] if context.pages else context.new_page()
 
-            # Attach request interceptor (case-insensitive header matching)
+            # Attach context-wide request interceptor across all tabs and iframes
             def on_request(request):
                 auth_val = ""
                 try:
@@ -220,28 +246,36 @@ def authenticate_via_browser_hook(
                 if auth_val.startswith("Bearer "):
                     tok = auth_val[7:].strip()
                     if len(tok) > 100:
-                        is_graph, user_upn = is_graph_token(tok)
-                        if is_graph or ("graph.microsoft.com" in request.url):
+                        is_intune, user_upn = is_intune_token(tok)
+                        if is_intune:
                             if not captured_token["token"]:
                                 captured_token["token"] = tok
                                 captured_token["user"] = user_upn or acc
                                 save_live_graph_token(tok, account_hint=captured_token["user"])
                                 console.print(
-                                    f"\n[bold green]⚡ [Network Hook] Successfully captured live Microsoft Graph Bearer token"
+                                    f"\n[bold green]⚡ [Network Hook] Successfully captured live Intune DeviceManagement Bearer token"
                                     f"{' for ' + captured_token['user'] if captured_token['user'] else ''}![/bold green]"
                                 )
+                        else:
+                            is_graph, _ = is_graph_token(tok)
+                            if is_graph and not captured_token["seen_shell"]:
+                                captured_token["seen_shell"] = True
+                                console.print(
+                                    "\n[dim]ℹ️  Portal shell token detected. Waiting for Intune DeviceManagement token...[/dim]"
+                                )
 
-            page.on("request", on_request)
+            context.on("request", on_request)
 
             def on_close(p):
                 user_closed_window["flag"] = True
 
             page.on("close", on_close)
 
-            # Navigate to Intune Admin Center
-            console.print("[cyan]⏳ Launching browser and navigating to https://intune.microsoft.com...[/cyan]")
+            # Navigate directly to Intune Compliance blade
+            intune_compliance_url = "https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/compliance"
+            console.print("[cyan]⏳ Launching browser and navigating to Intune Compliance blade...[/cyan]")
             try:
-                page.goto(INTUNE_PORTAL_URL, timeout=45000)
+                page.goto(intune_compliance_url, timeout=45000)
             except Exception:
                 pass
 
@@ -249,7 +283,6 @@ def authenticate_via_browser_hook(
             max_seconds = 300
             start_time = time.time()
             last_status_time = 0.0
-            blade_navigate_triggered = False
 
             while not user_closed_window["flag"] and (time.time() - start_time < max_seconds):
                 elapsed = int(time.time() - start_time)
@@ -275,19 +308,24 @@ def authenticate_via_browser_hook(
                 except Exception:
                     current_url = ""
 
-                # Check browser storage (sessionStorage / localStorage) for MSAL Graph tokens
+                # Scan all pages in context for cached MSAL tokens
                 if ("intune.microsoft.com" in current_url or user_signaled_done) and not captured_token["token"]:
-                    page_tokens = extract_tokens_from_page(page)
-                    for pt in page_tokens:
-                        is_graph, user_upn = is_graph_token(pt)
-                        if is_graph:
-                            captured_token["token"] = pt
-                            captured_token["user"] = user_upn or acc
-                            save_live_graph_token(pt, account_hint=captured_token["user"])
-                            console.print(
-                                f"\n[bold green]{time_str} ⚡ [Session Storage Hook] Captured Microsoft Graph token"
-                                f"{' for ' + captured_token['user'] if captured_token['user'] else ''}![/bold green]"
-                            )
+                    for p_item in context.pages:
+                        try:
+                            for pt in extract_tokens_from_page(p_item):
+                                is_intune, user_upn = is_intune_token(pt)
+                                if is_intune:
+                                    captured_token["token"] = pt
+                                    captured_token["user"] = user_upn or acc
+                                    save_live_graph_token(pt, account_hint=captured_token["user"])
+                                    console.print(
+                                        f"\n[bold green]{time_str} ⚡ [Session Storage Hook] Captured Intune DeviceManagement token"
+                                        f"{' for ' + captured_token['user'] if captured_token['user'] else ''}![/bold green]"
+                                    )
+                                    break
+                        except Exception:
+                            pass
+                        if captured_token["token"]:
                             break
 
                 # If token captured: secure session state and close browser automatically!
@@ -308,15 +346,16 @@ def authenticate_via_browser_hook(
                     time.sleep(1.0)
                     break
 
-                # If user reached Intune Admin Center but token hasn't fired yet, trigger a blade navigation!
-                if "intune.microsoft.com" in current_url and "login.microsoftonline.com" not in current_url:
-                    if not blade_navigate_triggered and elapsed > 3:
-                        blade_navigate_triggered = True
-                        console.print(f"[cyan]{time_str} 🎯 Reached Intune Admin Center! Loading compliance blade to trigger Graph API calls...[/cyan]")
-                        try:
-                            page.goto("https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/compliance", timeout=15000)
-                        except Exception:
-                            pass
+                # If user signaled done but no Intune token captured yet, guide them
+                if user_signaled_done and not captured_token["token"]:
+                    console.print(
+                        f"[yellow]{time_str} ⚠️  Intune DeviceManagement token not captured yet. "
+                        "Click 'Devices' or 'Compliance' in Edge to trigger policy requests...[/yellow]"
+                    )
+                    try:
+                        page.goto(intune_compliance_url, timeout=15000)
+                    except Exception:
+                        pass
 
                 # Periodic live feedback in the terminal every 2 seconds
                 if time.time() - last_status_time >= 2.0:
@@ -326,10 +365,12 @@ def authenticate_via_browser_hook(
                     elif "kmsi" in current_url:
                         console.print(f"[dim]{time_str} ⏳ On 'Stay signed in?' prompt in browser window...[/dim]")
                     elif "intune.microsoft.com" in current_url:
-                        console.print(f"[cyan]{time_str} 🎯 In Intune Admin Center. Intercepting Graph session tokens... (Press [ENTER] if dashboard is visible)[/cyan]")
+                        console.print(f"[cyan]{time_str} 🎯 In Intune Admin Center. Click 'Devices' in Edge or press [ENTER] here.[/cyan]")
                     else:
                         domain = current_url.split("/")[2] if "/" in current_url else "portal"
                         console.print(f"[dim]{time_str} 🌐 Browser active on {domain}...[/dim]")
+
+                time.sleep(0.5)
 
                 time.sleep(0.5)
 

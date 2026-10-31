@@ -43,6 +43,15 @@ class GraphClient:
                 retries += 1
                 continue
 
+            if resp.status_code == 403:
+                err_data = {}
+                try:
+                    err_data = resp.json()
+                except Exception:
+                    pass
+                err_msg = err_data.get("error", {}).get("message", resp.text)
+                raise PermissionError(f"HTTP 403 Forbidden on {url}: {err_msg}")
+
             resp.raise_for_status()
 
         raise RuntimeError(f"Maximum retries reached for endpoint: {url}")

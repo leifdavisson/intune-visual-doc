@@ -15,10 +15,14 @@ class PolicyCollector:
 
     def get_compliance_policies(self) -> List[Dict[str, Any]]:
         """Fetch all Device Compliance Policies with assignments."""
-        raw = self.client.get_all_pages(
-            "/deviceManagement/deviceCompliancePolicies?$expand=assignments",
-            beta=True
-        )
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/deviceCompliancePolicies?$expand=assignments",
+                beta=True
+            )
+        except Exception as e:
+            print(f"[Warning] Failed to fetch Device Compliance policies: {e}")
+            return []
         policies = []
         for p in raw:
             assignments = self.resolver.parse_assignments(p.get("assignments", []))
@@ -40,10 +44,14 @@ class PolicyCollector:
 
     def get_configuration_policies(self) -> List[Dict[str, Any]]:
         """Fetch Settings Catalog policies with full settings expansion."""
-        raw = self.client.get_all_pages(
-            "/deviceManagement/configurationPolicies?$expand=settings,assignments",
-            beta=True
-        )
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/configurationPolicies?$expand=settings,assignments",
+                beta=True
+            )
+        except Exception as e:
+            print(f"[Warning] Failed to fetch Settings Catalog policies: {e}")
+            return []
         policies = []
         for p in raw:
             assignments = self.resolver.parse_assignments(p.get("assignments", []))
@@ -65,10 +73,14 @@ class PolicyCollector:
 
     def get_device_configurations(self) -> List[Dict[str, Any]]:
         """Fetch legacy template Device Configurations with assignments."""
-        raw = self.client.get_all_pages(
-            "/deviceManagement/deviceConfigurations?$expand=assignments",
-            beta=True
-        )
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceManagement/deviceConfigurations?$expand=assignments",
+                beta=True
+            )
+        except Exception as e:
+            print(f"[Warning] Failed to fetch Device Configuration templates: {e}")
+            return []
         policies = []
         for p in raw:
             assignments = self.resolver.parse_assignments(p.get("assignments", []))
@@ -194,10 +206,14 @@ class PolicyCollector:
 
     def get_managed_apps(self) -> List[Dict[str, Any]]:
         """Fetch Managed Mobile Applications, assignments, dependencies, and supersedences."""
-        raw = self.client.get_all_pages(
-            "/deviceAppManagement/mobileApps?$expand=assignments,relationships",
-            beta=True
-        )
+        try:
+            raw = self.client.get_all_pages(
+                "/deviceAppManagement/mobileApps?$expand=assignments,relationships",
+                beta=True
+            )
+        except Exception as e:
+            print(f"[Warning] Failed to fetch Managed Applications: {e}")
+            return []
         apps = []
         for a in raw:
             assignments = self.resolver.parse_assignments(a.get("assignments", []))
