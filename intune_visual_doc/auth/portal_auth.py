@@ -109,6 +109,18 @@ def extract_tokens_from_page(page) -> List[str]:
         return []
 
 
+def is_token_expired(jwt_token: str) -> bool:
+    """Check if JWT token is expired based on exp claim with 60s buffer."""
+    claims = parse_jwt_claims(jwt_token)
+    exp = claims.get("exp")
+    if exp is not None:
+        try:
+            return time.time() >= (float(exp) - 60)
+        except Exception:
+            pass
+    return False
+
+
 def get_live_graph_token(require_intune: bool = True) -> Optional[str]:
     """Retrieve saved live Graph Bearer token if valid, not expired, and has Intune scopes."""
     if os.path.exists(LIVE_TOKEN_FILE):
@@ -117,7 +129,13 @@ def get_live_graph_token(require_intune: bool = True) -> Optional[str]:
                 data = json.load(f)
             token = data.get("access_token")
             timestamp = data.get("timestamp", 0)
-            if token and (time.time() - timestamp < 3000):
+            if token:
+                # Check expiration via JWT exp claim first, fallback to timestamp
+                if is_token_expired(token):
+                    return None
+                if not parse_jwt_claims(token).get("exp") and (time.time() - timestamp >= 3600):
+                    return None
+
                 if require_intune:
                     valid_intune, _ = is_intune_token(token)
                     if valid_intune:
@@ -220,7 +238,14 @@ def authenticate_via_browser_hook(
                 browser = p.chromium.launch(channel=channel, headless=False)
                 context = browser.new_context(viewport={"width": 1440, "height": 900})
 
-            # Reuse existing page to avoid extra blank tab
+            # Clean up extraneous blank tabs on startup
+            if len(context.pages) > 1:
+                for p_extra in list(context.pages[1:]):
+                    if p_extra.url in ("", "about:blank"):
+                        try:
+                            p_extra.close()
+                        except Exception:
+                            pass
             page = context.pages[0] if context.pages else context.new_page()
 
             # Attach context-wide request interceptor across all tabs and iframes
@@ -303,10 +328,28 @@ def authenticate_via_browser_hook(
                 except Exception:
                     pass
 
+                current_url = ""
+                active_page = page
                 try:
-                    current_url = page.url
+                    for p_candidate in reversed(context.pages):
+                        u = p_candidate.url or ""
+                        if "intune.microsoft.com" in u:
+                            current_url = u
+                            active_page = p_candidate
+                            break
+                        if not current_url and u and u != "about:blank":
+                            current_url = u
+                            active_page = p_candidate
                 except Exception:
                     current_url = ""
+
+                # If user landed on #home after login, auto-route to compliance blade to trigger DeviceManagement token
+                if "intune.microsoft.com/#home" in current_url and not captured_token["token"]:
+                    try:
+                        active_page.goto(intune_compliance_url, timeout=15000)
+                        current_url = active_page.url or current_url
+                    except Exception:
+                        pass
 
                 # Scan all pages in context for cached MSAL tokens
                 if ("intune.microsoft.com" in current_url or user_signaled_done) and not captured_token["token"]:
@@ -369,8 +412,6 @@ def authenticate_via_browser_hook(
                     else:
                         domain = current_url.split("/")[2] if "/" in current_url else "portal"
                         console.print(f"[dim]{time_str} 🌐 Browser active on {domain}...[/dim]")
-
-                time.sleep(0.5)
 
                 time.sleep(0.5)
 

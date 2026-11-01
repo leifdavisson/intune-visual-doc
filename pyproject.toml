@@ -12,6 +12,35 @@ license = { text = "AGPL-3.0-or-later" }
 authors = [
     { name = "Leif Davisson" }
 ]
+keywords = [
+    "microsoft-intune",
+    "intune",
+    "microsoft-graph",
+    "playwright",
+    "documentation",
+    "compliance",
+    "asd-ste100",
+    "sysadmin",
+    "device-management",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Security",
+]
 dependencies = [
     "msal>=1.31.0",
     "requests>=2.31.0",
@@ -26,5 +55,12 @@ dev = [
     "pytest>=8.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/leifdavisson/intune-visual-doc"
+Documentation = "https://github.com/leifdavisson/intune-visual-doc#readme"
+Repository = "https://github.com/leifdavisson/intune-visual-doc.git"
+Issues = "https://github.com/leifdavisson/intune-visual-doc/issues"
+
 [project.scripts]
 intunedoc = "intune_visual_doc.cli:main"
+intune-restore = "scripts.intune_restore:main"

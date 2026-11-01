@@ -18,8 +18,14 @@ from .graph import GraphClient, PolicyCollector
 from .visual import ScreenshotManager
 from .generator import DocGenerator
 from .audit import lint_markdown_directory, compare_with_backups
-from .prerequisites import display_prerequisites_table, wipe_all_credentials
+from .prerequisites import display_prerequisites_table, wipe_all_credentials, load_config
 from .mock_data import get_mock_policies, get_mock_audit_events, setup_mock_screenshots
+from .deliverables import (
+    create_timestamped_run_dir,
+    update_latest_pointer,
+    record_run_in_catalog,
+    get_latest_deliverables_dir,
+)
 
 console = Console()
 
@@ -60,8 +66,23 @@ def cmd_login(args):
 
 def cmd_run(args):
     """Run the documentation extraction and rendering pipeline."""
-    output_dir = os.path.abspath(args.output_dir)
-    console.print(Panel(f"[bold cyan]🚀 Starting Intune Documentation Run[/bold cyan]\n[dim]Target directory: {output_dir}[/dim]"))
+    target_base = getattr(args, "output_dir", "deliverables")
+    no_timestamp = getattr(args, "no_timestamp", False)
+
+    # Determine output directory
+    is_timestamped = not no_timestamp and target_base in ("deliverables", "docs")
+    if is_timestamped:
+        base_dir = "deliverables"
+        output_dir = create_timestamped_run_dir(base_dir=base_dir)
+    else:
+        output_dir = os.path.abspath(target_base)
+        os.makedirs(output_dir, exist_ok=True)
+        base_dir = output_dir
+
+    console.print(Panel(
+        f"[bold cyan]🚀 Starting Intune Documentation Run[/bold cyan]\n"
+        f"[dim]Target deliverable directory: {output_dir}[/dim]"
+    ))
 
     policies = []
     audit_events = []
@@ -105,6 +126,11 @@ def cmd_run(args):
         if fetch_all or legacy_config_bundle or "endpoint_security" in cats or "endpoint security" in cats:
             console.print("[cyan]Fetching Endpoint security policies (Disk encryption, Antivirus, Firewall)...[/cyan]")
             policies.extend(collector.get_endpoint_security_policies())
+            if not (fetch_all or "configuration" in cats):
+                policies.extend([
+                    p for p in collector.get_configuration_policies()
+                    if p.get("category_label") == "Endpoint Security"
+                ])
 
         if fetch_all or legacy_config_bundle or "scripts" in cats:
             console.print("[cyan]Fetching Devices > Scripts (PowerShell & Shell)...[/cyan]")
@@ -117,6 +143,18 @@ def cmd_run(args):
         if fetch_all or "apps" in cats:
             console.print("[cyan]Fetching Apps (Managed applications)...[/cyan]")
             policies.extend(collector.get_managed_apps())
+
+        # Deduplicate policies by ID while preserving extraction order
+        seen_ids = set()
+        deduped_policies = []
+        for p in policies:
+            pid = p.get("id")
+            if pid and pid in seen_ids:
+                continue
+            if pid:
+                seen_ids.add(pid)
+            deduped_policies.append(p)
+        policies = deduped_policies
 
         console.print(f"[cyan]Fetching Admin Audit Events (past {args.audit_days} days)...[/cyan]")
         audit_events = collector.get_audit_logs(days=args.audit_days)
@@ -160,7 +198,149 @@ def cmd_run(args):
 
     console.print(table)
     console.print(f"\n[bold green]✅ Documentation generation complete![/bold green]")
-    console.print(f"👉 [bold underline]Index Path:[/bold underline] file://{summary['index_path']}\n")
+    console.print(f"👉 [bold underline]Deliverable Index:[/bold underline] file://{summary['index_path']}")
+
+    if is_timestamped:
+        latest_pointer = update_latest_pointer(output_dir, base_dir=base_dir)
+        cfg = load_config()
+        account_email = cfg.get("account_email", "")
+        catalog_path = record_run_in_catalog(
+            base_dir=base_dir,
+            run_dir=output_dir,
+            summary=summary,
+            tenant_hint=account_email,
+            audit_count=len(audit_events),
+        )
+        console.print(f"👉 [bold underline]Latest Pointer:[/bold underline] file://{latest_pointer}/README.md")
+        console.print(f"👉 [bold underline]Master Catalog:[/bold underline] file://{catalog_path}\n")
+    else:
+        console.print("")
+
+
+def cmd_backup(args):
+    """Export raw JSON policy configurations for disaster recovery and safe restores."""
+    base_dir = getattr(args, "output_dir", "deliverables")
+    no_timestamp = getattr(args, "no_timestamp", False)
+    use_mock = getattr(args, "mock", False)
+    unsanitize = getattr(args, "unsanitize", True)
+
+    if no_timestamp:
+        output_dir = os.path.abspath(base_dir)
+        os.makedirs(output_dir, exist_ok=True)
+        is_timestamped = False
+    else:
+        output_dir = create_timestamped_run_dir(base_dir=base_dir)
+        is_timestamped = True
+
+    fidelity_text = (
+        "Unsanitized (Full fidelity for 1-to-1 restore)"
+        if unsanitize
+        else "Sanitized (Secrets masked)"
+    )
+    console.print(Panel(
+        f"[bold cyan]📦 Exporting Intune Configuration Backup[/bold cyan]\n"
+        f"Mode: {'Mock Sample Data' if use_mock else 'Live Microsoft Graph API'}\n"
+        f"Restore Fidelity: {fidelity_text}\n"
+        f"Target Directory: {output_dir}/raw_json\n\n"
+        f"[dim]Tip: Fast export without browser screenshots. Use 'scripts/intune_restore.py' to restore.[/dim]"
+    ))
+
+    policies = []
+    if use_mock:
+        policies = get_mock_policies()
+    else:
+        try:
+            token = get_graph_token()
+            client = GraphClient(token)
+            collector = PolicyCollector(client)
+        except Exception as e:
+            console.print(f"[red]Authentication not ready: {e}[/red]")
+            console.print("[dim]Hint: Run 'intunedoc login' first or pass '--mock' for offline verification.[/dim]")
+            sys.exit(1)
+
+        cats = [c.strip().lower() for c in getattr(args, "category", "").split(",") if c.strip()]
+        fetch_all = not cats or "all" in cats
+
+        if fetch_all or "compliance" in cats:
+            console.print("[cyan]Backing up Devices > Compliance policies...[/cyan]")
+            policies.extend(collector.get_compliance_policies())
+
+        if fetch_all or "configuration" in cats:
+            console.print("[cyan]Backing up Devices > Configuration (Settings Catalog & Templates)...[/cyan]")
+            policies.extend(collector.get_configuration_policies())
+            policies.extend(collector.get_device_configurations())
+
+        if fetch_all or "endpoint_security" in cats:
+            console.print("[cyan]Backing up Endpoint security policies...[/cyan]")
+            policies.extend(collector.get_endpoint_security_policies())
+
+        if fetch_all or "scripts" in cats:
+            console.print("[cyan]Backing up Devices > Scripts (PowerShell & Shell)...[/cyan]")
+            policies.extend(collector.get_device_management_scripts())
+
+        if fetch_all or "enrollment" in cats:
+            console.print("[cyan]Backing up Devices > Enrollment configurations (Autopilot)...[/cyan]")
+            policies.extend(collector.get_device_enrollment_configurations())
+
+        if fetch_all or "apps" in cats:
+            console.print("[cyan]Backing up Apps (Managed applications)...[/cyan]")
+            policies.extend(collector.get_managed_apps())
+
+        # Deduplicate policies by ID
+        seen_ids = set()
+        deduped = []
+        for p in policies:
+            pid = p.get("id")
+            if pid and pid in seen_ids:
+                continue
+            if pid:
+                seen_ids.add(pid)
+            deduped.append(p)
+        policies = deduped
+
+    # Generate backup bundle
+    generator = DocGenerator(output_dir=output_dir, unsanitize=unsanitize)
+    summary = generator.render_all(
+        policies=policies,
+        audit_events=[],
+        generator_user="Intune Backup Service",
+        audit_days=0,
+        screenshots_map={},
+    )
+
+    # Rich summary
+    table = Table(title="Configuration Backup Summary", border_style="cyan")
+    table.add_column("Category", style="cyan")
+    table.add_column("Count", justify="right", style="green")
+    table.add_column("Status", style="yellow")
+
+    table.add_row("Total Policies", str(summary["stats"]["total_policies"]), "Exported to raw_json/")
+    table.add_row("Assigned", str(summary["stats"]["assigned_policies"]), "Targeted in tenant")
+    table.add_row("Unassigned", str(summary["stats"]["unassigned_policies"]), "Dormant in tenant")
+    table.add_row("Restore Readiness", "✅ Valid JSON", "Ready for scripts/intune_restore.py")
+    table.add_row("Restore Safety", "🛡️ Safe Mode", "Assignments stripped upon restore")
+
+    console.print(table)
+    console.print(f"\n[bold green]✅ Configuration backup export complete![/bold green]")
+    console.print(f"👉 [bold underline]Backup Manifest:[/bold underline] file://{summary.get('manifest_path', '')}")
+    console.print(f"👉 [bold underline]Raw JSON Directory:[/bold underline] file://{output_dir}/raw_json")
+
+    if is_timestamped:
+        latest_pointer = update_latest_pointer(output_dir, base_dir=base_dir)
+        cfg = load_config()
+        account_email = cfg.get("account_email", "")
+        catalog_path = record_run_in_catalog(
+            base_dir=base_dir,
+            run_dir=output_dir,
+            summary=summary,
+            tenant_hint=account_email,
+            audit_count=0,
+            run_type="Backup",
+        )
+        console.print(f"👉 [bold underline]Latest Pointer:[/bold underline] file://{latest_pointer}/README.md")
+        console.print(f"👉 [bold underline]Master Catalog:[/bold underline] file://{catalog_path}\n")
+    else:
+        console.print("")
 
 
 def cmd_lint_ste(args):
@@ -194,10 +374,14 @@ def cmd_lint_ste(args):
 
 
 def cmd_diff(args):
-    """Compare live or mock Intune policies against saved docs/raw_json/ backups."""
-    output_dir = os.path.abspath(getattr(args, "output_dir", "docs"))
+    """Compare live or mock Intune policies against saved raw_json/ backups."""
+    base_dir = getattr(args, "output_dir", "deliverables")
+    target_dir = get_latest_deliverables_dir(base_dir) or os.path.abspath(base_dir)
     use_mock = getattr(args, "mock", False)
-    console.print(Panel(f"[bold cyan]🔍 Auditing Configuration Drift[/bold cyan]\nBackup Directory: {output_dir}/raw_json"))
+    console.print(Panel(
+        f"[bold cyan]🔍 Auditing Configuration Drift[/bold cyan]\n"
+        f"Backup Directory: {target_dir}/raw_json"
+    ))
 
     if use_mock:
         policies = get_mock_policies()
@@ -220,7 +404,7 @@ def cmd_diff(args):
             console.print("[dim]Hint: Run 'intunedoc login' first or pass '--mock' for offline verification.[/dim]")
             sys.exit(1)
 
-    findings = compare_with_backups(policies, output_dir=output_dir)
+    findings = compare_with_backups(policies, output_dir=target_dir)
     if not findings:
         console.print("[bold green]✅ No configuration drift detected since last backup.[/bold green]\n")
         return
@@ -306,9 +490,19 @@ def _dispatch_tui(skip_prereqs: bool = False):
                 mock = opts.get("mock", False)
                 unsanitize = opts.get("unsanitize", False)
                 audit_days = opts.get("audit_days", 30)
-                output_dir = opts.get("output_dir", "docs")
+                output_dir = opts.get("output_dir", "deliverables")
+                no_timestamp = False
             cmd_run(RunArgs())
             console.print("\n[dim]Press any key or return to main menu...[/dim]\n")
+        elif act == "backup":
+            class BackupArgs:
+                category = ",".join(opts.get("categories", []))
+                mock = opts.get("mock", False)
+                unsanitize = opts.get("unsanitize", True)
+                output_dir = opts.get("output_dir", "deliverables")
+                no_timestamp = False
+            cmd_backup(BackupArgs())
+            console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act in ("login_done", "prereqs_done", "logout_done", "setup_done"):
             continue
         elif act == "setup":
@@ -316,13 +510,14 @@ def _dispatch_tui(skip_prereqs: bool = False):
         elif act == "login":
             cmd_login(None)
         elif act == "lint":
+            target_lint = "deliverables/latest" if os.path.exists("deliverables/latest") else "docs"
             class LintArgs:
-                directory = "docs"
+                directory = target_lint
             cmd_lint_ste(LintArgs())
             console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act == "diff":
             class DiffArgs:
-                output_dir = "docs"
+                output_dir = "deliverables"
                 mock = False
             cmd_diff(DiffArgs())
             console.print("\n[dim]Returning to main menu...[/dim]\n")
@@ -373,7 +568,17 @@ def main():
     run_parser.add_argument("--mock", action="store_true", help="Use mock school district sample data")
     run_parser.add_argument("--unsanitize", action="store_true", help="Do not mask sensitive keys and pre-shared secrets")
     run_parser.add_argument("--audit-days", type=int, default=30, help="Days of admin audit logs to include (default: 30)")
-    run_parser.add_argument("--output-dir", type=str, default="docs", help="Directory where documentation will be generated (default: docs)")
+    run_parser.add_argument("--output-dir", type=str, default="deliverables", help="Base directory where deliverables are stored (default: deliverables)")
+    run_parser.add_argument("--no-timestamp", action="store_true", help="Write directly to output directory without creating a timestamped subfolder")
+
+    # backup subcommand
+    backup_parser = subparsers.add_parser("backup", help="Export raw JSON policy configurations (fast, no screenshots)")
+    backup_parser.add_argument("--category", type=str, default="", help="Comma-separated categories to backup")
+    backup_parser.add_argument("--mock", action="store_true", help="Backup mock school district sample data")
+    backup_parser.add_argument("--unsanitize", action="store_true", default=True, help="Preserve unmasked raw configuration secrets (default: True for 1-to-1 restore)")
+    backup_parser.add_argument("--sanitize", action="store_false", dest="unsanitize", help="Mask sensitive keys and pre-shared secrets in backup")
+    backup_parser.add_argument("--output-dir", type=str, default="deliverables", help="Base directory where deliverables are stored (default: deliverables)")
+    backup_parser.add_argument("--no-timestamp", action="store_true", help="Write directly without creating a timestamped subfolder")
 
     # lint-ste subcommand
     lint_parser = subparsers.add_parser("lint-ste", help="Audit markdown files for ASD-STE100 compliance")
@@ -381,7 +586,7 @@ def main():
 
     # diff subcommand
     diff_parser = subparsers.add_parser("diff", help="View configuration drift compared to last run")
-    diff_parser.add_argument("--output-dir", type=str, default="docs", help="Documentation directory containing raw_json/ backups")
+    diff_parser.add_argument("--output-dir", type=str, default="deliverables", help="Deliverables directory containing run snapshots or raw_json/ backups (default: deliverables)")
     diff_parser.add_argument("--mock", action="store_true", help="Compare mock policies against saved backups")
 
     args = parser.parse_args()
@@ -398,6 +603,8 @@ def main():
         cmd_logout(args)
     elif args.command == "run":
         cmd_run(args)
+    elif args.command == "backup":
+        cmd_backup(args)
     elif args.command == "lint-ste":
         cmd_lint_ste(args)
     elif args.command == "diff":

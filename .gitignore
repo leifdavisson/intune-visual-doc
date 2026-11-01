@@ -47,3 +47,14 @@ htmlcov/
 # Operating System
 .DS_Store
 Thumbs.db
+
+# Customer Tenant Deliverables & Run Snapshots (NEVER commit live tenant data to git)
+deliverables/*/
+deliverables/latest
+!deliverables/.gitkeep
+!deliverables/README.md
+
+# Restore Receipts & Temporary Receipts
+*restore_receipt_*.json
+/tmp/unmasked_compliance.json
+

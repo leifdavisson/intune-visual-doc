@@ -12,14 +12,18 @@ Opening dozens of concurrent browser tabs exhausts memory and triggers portal ra
 
 ## Decision
 
-1. **Browser Channel (`visual/screenshot.py`)**: Launch headless [Playwright](https://playwright.dev/python/) with the configured channel (`msedge`, `chrome`, or Chromium) and `.auth/playwright_state.json` at `1440x900`.
-2. **Deterministic Deep Links**: Build blade URLs under `https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings`:
-   - Compliance: `CompliancePolicyDetailsBlade/policyId/{id}` and `CompliancePolicyMenuBlade/~/properties/policyId/{id}`
-   - Configuration: `ConfigurationPolicyDetailsBlade/policyId/{id}` and `ConfigurationPolicyMenuBlade/~/properties/policyId/{id}`
-   - Applications: `ApplicationDetailsBlade/appId/{id}` and `ApplicationMenuBlade/~/properties/appId/{id}`
-3. **Dual Blade Capture**: Capture `overview.png` (`full_page=False`) and `properties.png` (`full_page=True`) sequentially with a 1.5-second render pause after `networkidle`.
-4. **Slug Asset Hierarchy**: Save images to `docs/assets/screenshots/<category>/<policy-slug>/`.
-5. **Fault Tolerance**: Catch navigation or timeout errors per blade, insert a clean Markdown notice, and continue processing remaining policies.
+1. **Persistent Browser Context (`visual/screenshot.py`)**: Launch headless [Playwright](https://playwright.dev/python/) with `launch_persistent_context` in `.auth/browser_profile` at `1440x900`. This preserves cross-origin Entra ID security cookies (`login.microsoftonline.com`).
+2. **Modern Ibiza & ReactView Deep Links**: Build deterministic blade URLs matching the live Intune portal routes:
+   - Compliance: `Microsoft_Intune_DeviceSettings/CompliancePolicyOverview.ReactView/policyId/{id}/...`
+   - Settings Catalog & Unified Security: `Microsoft_Intune_Workflows/PolicySummaryBlade/policyId/{id}/...`
+   - Configuration Templates: `Microsoft_Intune_DeviceSettings/PolicySummaryReportBlade/policyId/{id}/...`
+   - Applications: `Microsoft_Intune_Apps/SettingsMenu/~/0/appId/{id}` and `SettingsMenu/~/1/appId/{id}`
+   - Scripts: `Microsoft_Intune_DeviceSettings/PowershellScriptMenuBlade/~/overview/policyId/{id}`
+   - Enrollment: `Microsoft_Intune_DeviceSettings/DevicesMenu/~/enrollment`
+3. **Dual Blade & IFrame Tab Capture**: Capture `overview.png` (`full_page=False`) first. Then click the `Properties` tab or scroll `Configuration settings` into view inside React iframes before capturing `properties.png`.
+4. **Login Guard & Visual Hygiene Markup**: Reject screenshots if the browser lands on `login.microsoftonline.com` or an Ibiza error page. Inject a status badge (`ASSIGNED POLICY` or `UNASSIGNED / DORMANT POLICY`) before capture and remove it afterward.
+5. **Slug Asset Hierarchy**: Save images to `docs/assets/screenshots/<category>/<policy-slug>/`.
+6. **Fault Tolerance**: Catch navigation or timeout errors per blade, insert a clean Markdown notice, and continue processing remaining policies.
 
 ## Consequences
 

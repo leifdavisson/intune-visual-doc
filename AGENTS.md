@@ -21,15 +21,19 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
   Keep `.auth/` gitignored.
 - **Secret Sanitization (`generator/sanitizer.py`, `generator/engine.py`)**:
   Keep `unsanitize=False` as the default across all CLI and TUI paths.
-  Pass both flattened `settings` rows and `raw` Graph payloads (`<details>` blocks and `docs/raw_json/*.json`)
+  Pass both flattened `settings` rows and `raw` Graph payloads (`<details>` blocks and `deliverables/<run>/raw_json/*.json`)
   through `sanitize_value()`.
 - **Workflow Order & Tenant Modification Boundary (`tui.py`, `cli.py`, `setup_wizard.py`)**:
   Run `display_prerequisites_table()` on TUI startup unless `--skip-prereqs` is set.
   `intunedoc setup` is the ONLY operation that creates or modifies objects in the Microsoft Entra tenant.
-  All other workflows are strictly 100% read-only.
-  Preserve the 8-step chronological TUI sequence (`1. Prerequisites` -> `2. Setup Read-Only Identities` ->
-  `3. Authenticate` -> `4. Run Generator` -> `5. Lint STE` -> `6. Drift Diff` -> `7. Logout` -> `8. Exit`).
-  Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`).
+  All other core workflows are strictly 100% read-only.
+  Preserve the 9-step chronological TUI sequence (`1. Prerequisites` -> `2. Setup Read-Only Identities` ->
+  `3. Authenticate` -> `4. Run Generator` -> `5. Export Backup` -> `6. Lint STE` -> `7. Drift Diff` -> `8. Logout` -> `9. Exit`).
+  Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`, `intunedoc backup --mock`).
+- **Standalone Restore Boundary (`scripts/intune_restore.py`, ADR 0013)**:
+  Keep tenant restoration operations completely outside the TUI in `scripts/intune_restore.py`.
+  Enforce multi-layered safety gates: strip assignments by default to create dormant unassigned policies,
+  check for existing policy collisions, reject masked backups via sanitization sentinel, and support dry-run simulation.
 - **Read-Only Service Identities (`setup_wizard.py`, ADR 0011)**:
   Configure `intunedoc-reader-spn` with strictly read-only Graph application roles
   (`DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`,
@@ -73,9 +77,10 @@ Load only the ADR or skill matching your active task branch:
   [`docs/adr/0004-visual-capture-using-playwright.md`](docs/adr/0004-visual-capture-using-playwright.md) —
   when updating Intune portal deep-link blade URLs or `visual/screenshot.py`.
 - **Templates, Badges, Sanitization & STE100**:
-  [`docs/adr/0005-asd-ste100-documentation-standards.md`](docs/adr/0005-asd-ste100-documentation-standards.md)
-  and [`docs/adr/0006-security-secret-sanitization-by-default.md`](docs/adr/0006-security-secret-sanitization-by-default.md) —
-  when editing `generator/`, `audit/ste_linter.py`, or Markdown docs.
+  [`docs/adr/0005-asd-ste100-documentation-standards.md`](docs/adr/0005-asd-ste100-documentation-standards.md),
+  [`docs/adr/0006-security-secret-sanitization-by-default.md`](docs/adr/0006-security-secret-sanitization-by-default.md),
+  and [`docs/adr/0012-deliverables-folder-and-timestamped-runs.md`](docs/adr/0012-deliverables-folder-and-timestamped-runs.md) —
+  when editing `generator/`, `deliverables.py`, `audit/ste_linter.py`, or Markdown docs.
 - **Workflow & TUI**: [`docs/WORKFLOW.md`](docs/WORKFLOW.md) and
   [`docs/adr/0007-interactive-terminal-user-interface.md`](docs/adr/0007-interactive-terminal-user-interface.md) —
   when updating TUI/CLI subcommands or architecture diagrams.

@@ -1,81 +1,48 @@
-# Microsoft Intune Tenant Documentation
+# Intune Visual Doc — Software Documentation
 
-> 🕒 **Documentation Stamp**: Generated on **2026-10-31 21:08:33 UTC** by **Intune Administrator**
->
-> 🚨 **Hygiene & Alerts**: [View Active Warnings & Administrator Actions](TENANT_WARNINGS.md)
->
-> 📋 **Admin Audit Integration**: [View Recent Admin Audit Logs](audit/ADMIN_AUDIT_LOG.md) | [Open in Intune Portal](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs)
+[Back to Repository Root](../README.md)
 
-Welcome to the automated Microsoft Intune configuration reference for this tenant.
-This repository documents active settings, group assignments, and visual portal screenshots.
+Welcome to the internal software documentation for **Intune Visual Doc** (`intunedoc`).
+This project extracts Microsoft Intune configurations via Microsoft Graph and captures visual portal screenshots using Playwright.
+All documentation and code in this repository follow the [ASD-STE100](https://asd-ste100.org/) specification under the GNU AGPLv3 license.
 
 ---
 
-## Table of Contents
+## Documentation Sections
 
-- [Tenant Health & Hygiene Summary](#tenant-health--hygiene-summary)
-- [🚨 Active Tenant Warnings & Admin Actions](TENANT_WARNINGS.md)
-- [📋 Administrative Audit Events (Past 30 Days)](audit/ADMIN_AUDIT_LOG.md)
-- [Device Compliance Policies](#device-compliance-policies)
-- [Configuration Profiles & Settings Catalog](#configuration-profiles--settings-catalog)
-- [Mobile & Managed Applications](#mobile--managed-applications)
-- [Direct Links & External Resources](#direct-links--resources)
-
----
-
-## Tenant Health & Hygiene Summary
-
-| Metric | Total Count | Description |
-| :--- | :--- | :--- |
-| **Total Policies Documented** | `5` | Total active policies extracted across all categories. |
-| **Assigned Policies** | `🟢 4` | Policies targeted to users or devices. |
-| **Unassigned / Dormant Policies** | `🟡 1 (Action Needed)` | Policies created without active target assignments. [View Warnings](TENANT_WARNINGS.md). |
-| **Security Baselines** | `🛡️ 1` | Policies enforcing baseline security (BitLocker, Antivirus, etc.). |
-| **Secret Sanitization** | `Enabled (Secrets Masked)` | Sensitive keys and credentials sanitized. |
+1. **[Architecture Decision Records](adr/README.md)**:
+   Review all architectural decisions (ADR 0001 through ADR 0013) governing authentication, security, and extraction models.
+2. **[End-to-End Workflow Guide](WORKFLOW.md)**:
+   Understand the 9-stage interactive TUI sequence and CLI automation pipelines.
+3. **[Least-Privilege Security Setup](PARANOID_ADMIN_SETUP.md)**:
+   Review read-only service principal roles and screenshot account permissions.
+4. **[Tenant Deliverables Catalog](../deliverables/README.md)**:
+   View generated tenant documentation snapshots, visual screenshots, and audit drift logs.
+5. **[Disaster Recovery & Safe Restore](../scripts/intune_restore.py)**:
+   Review safety controls in `scripts/intune_restore.py` for restoring JSON backups into Intune safely.
 
 ---
 
-## Documentation Categories
+## Directory Organization
 
-### Device Compliance Policies
-
-- **Documentation**: [Microsoft Learn: Compliance Overview](https://learn.microsoft.com/en-us/mem/intune/protect/device-compliance-get-started)
-- **Total Policies**: `1`
-
-| Policy Name | Platform | Status | Last Modified | View Document |
-| :--- | :--- | :--- | :--- | :--- |
-| **Staff and Student Device Compliance Policy** | Windows 10/11 | `🟢 Assigned` | 2026-10-20T16:45:10Z | [Open Guide](compliance/staff-and-student-device-compliance-policy.md) |
-
-### Configuration Profiles & Settings Catalog
-
-- **Documentation**: [Microsoft Learn: Settings Catalog](https://learn.microsoft.com/en-us/mem/intune/configuration/settings-catalog)
-- **Total Policies**: `3`
-
-| Policy Name | Platform | Status | Last Modified | View Document |
-| :--- | :--- | :--- | :--- | :--- |
-| **BitLocker - Windows 11 Enterprise Baseline** | Windows 11 | `🟢 Assigned` | 2026-10-12T14:15:22Z | [Open Guide](configuration/bitlocker-windows-11-enterprise-baseline.md) |
-| **Windows Autopilot Deployment Profile - District Desktops** | Windows 11 | `🟢 Assigned` | 2026-10-05T12:00:00Z | [Open Guide](configuration/windows-autopilot-deployment-profile-district-desktops.md) |
-| **Draft Lab Kiosk Restrictions (Unassigned)** | Windows 11 | `🟡 Unassigned` | 2026-10-28T09:20:00Z | [Open Guide](configuration/draft-lab-kiosk-restrictions-unassigned.md) |
-
-### Mobile & Managed Applications
-
-- **Documentation**: [Microsoft Learn: App Management](https://learn.microsoft.com/en-us/mem/intune/apps/app-management)
-- **Total Policies**: `1`
-
-| Policy Name | Platform | Status | Last Modified | View Document |
-| :--- | :--- | :--- | :--- | :--- |
-| **Company Portal App (Offline)** | Windows | `🟢 Assigned` | 2026-09-18T15:30:00Z | [Open Guide](apps/company-portal-app-offline.md) |
-
+```text
+├── docs/                      # Program & developer documentation (ADRs, workflows, setup guides)
+│   ├── adr/                   # Architecture Decision Records (Michael Nygard format)
+│   ├── WORKFLOW.md            # Interactive TUI & CLI execution flow
+│   ├── PARANOID_ADMIN_SETUP.md# Zero-trust read-only identity setup
+│   └── README.md              # Software documentation index (this document)
+├── deliverables/              # Generated customer/tenant documentation deliverables
+│   ├── latest -> <timestamp> # Symbolic link pointing to most recent run
+│   ├── README.md              # Historical deliverables catalog
+│   └── <timestamp>/           # Timestamped extraction (e.g. 2026-10-31_153000)
+│       ├── README.md          # Tenant documentation overview & Table of Contents
+│       ├── TENANT_WARNINGS.md # Active tenant alerts and hygiene review checklist
+│       ├── assets/screenshots/# Dual overview and properties visual captures
+│       ├── audit/             # Administrative audit logs
+│       ├── raw_json/          # Full Microsoft Graph JSON backups for drift audit
+│       └── <category>/        # Individual policy Markdown documentation
+```
 
 ---
 
-## Direct Links & Resources
-
-- [Microsoft Intune Admin Center](https://intune.microsoft.com)
-- [Microsoft Learn Intune Documentation](https://learn.microsoft.com/en-us/mem/intune/)
-- [Microsoft Graph API Overview](https://learn.microsoft.com/en-us/graph/overview)
-- [Playwright Web Automation](https://playwright.dev/)
-- [ASD-STE100 Specification](https://asd-ste100.org/)
-
----
-*Documentation generated automatically by [intune-visual-doc](https://github.com/leifdavisson/intune_docs).*
+*Licensed under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).*

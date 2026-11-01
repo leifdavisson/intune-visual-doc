@@ -116,7 +116,7 @@ def build_cli_command(categories, screenshots, mock, unsanitize, audit_days, out
         parts.append("--unsanitize")
     if audit_days != 30:
         parts.extend(["--audit-days", str(audit_days)])
-    if output_dir != "docs":
+    if output_dir != "deliverables":
         parts.extend(["--output-dir", output_dir])
     return " ".join(parts)
 
@@ -156,10 +156,11 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             {"name": "⚙️  2. Setup Read-Only SPN & Screenshot Maker (Optional: Server / CI/CD)", "value": "setup"},
             {"name": "🔑 3. Authenticate & Hook Session (Interactive Browser Login)", "value": "login"},
             {"name": "🚀 4. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
-            {"name": "📝 5. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
-            {"name": "🔍 6. Audit Configuration Drift (Diff)", "value": "diff"},
-            {"name": "🗑️  7. Logout (Purge Stored Credentials)", "value": "logout"},
-            {"name": "❌ 8. Exit", "value": "exit"},
+            {"name": "📦 5. Export Backup (Raw Configs Only — Fast, No Screenshots)", "value": "backup"},
+            {"name": "📝 6. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
+            {"name": "🔍 7. Audit Configuration Drift (Diff)", "value": "diff"},
+            {"name": "🗑️  8. Logout (Purge Stored Credentials)", "value": "logout"},
+            {"name": "❌ 9. Exit", "value": "exit"},
         ],
         default="prereqs",
         style=TUI_STYLE,
@@ -212,6 +213,67 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         else:
             console.print(f"\n[red]Login notice: {res.get('message', 'Authentication incomplete')}[/red]\n")
             return {"action": "login_done"}
+
+    if action == "backup":
+        if not audit["can_skip_login"]:
+            console.print("\n[bold yellow]⚠️  Missing Dependency Gate:[/bold yellow] No valid Microsoft Graph authentication token or SPN was found.")
+            do_auth = inquirer.confirm(
+                message="Would you like to run Step 3 (Authenticate & Hook Session) now before exporting backup?",
+                default=True,
+                style=TUI_STYLE,
+            ).execute()
+            if do_auth:
+                res = authenticate_via_browser_hook(force_refresh=False)
+                if not res or res.get("status") != "success":
+                    console.print("[red]Authentication not completed. Cannot proceed with backup.[/red]\n")
+                    return {"action": "cancel"}
+            else:
+                console.print("[yellow]Cannot export tenant data without authentication. Backup cancelled.[/yellow]\n")
+                return {"action": "cancel"}
+
+        categories = inquirer.checkbox(
+            message="Select Intune policy categories to backup:",
+            choices=[
+                {"name": "🌟 ALL Categories (Full Tenant Configuration Backup)", "value": "all", "enabled": True},
+                {"name": "Devices > Compliance (Device compliance policies)", "value": "compliance", "enabled": True},
+                {"name": "Devices > Configuration (Settings catalog & profile templates)", "value": "configuration", "enabled": True},
+                {"name": "Endpoint security (Disk encryption, Antivirus, Firewall)", "value": "endpoint_security", "enabled": True},
+                {"name": "Devices > Scripts (PowerShell & Shell scripts)", "value": "scripts", "enabled": True},
+                {"name": "Devices > Enrollment (Autopilot & enrollment configurations)", "value": "enrollment", "enabled": True},
+                {"name": "Apps (Managed desktop, store, and mobile applications)", "value": "apps", "enabled": True},
+            ],
+            style=TUI_STYLE,
+        ).execute()
+
+        if "all" in categories:
+            categories = ["all"]
+
+        unsanitize = inquirer.confirm(
+            message="Preserve unmasked raw configuration secrets (Recommended for 1-to-1 restore)?",
+            default=True,
+            style=TUI_STYLE,
+        ).execute()
+
+        cmd_preview = f"intunedoc backup{' --category ' + ','.join(categories) if 'all' not in categories else ''}{' --unsanitize' if unsanitize else ''}"
+        console.print(
+            Panel(
+                f"[bold yellow]👉 Equivalent CLI Command:[/bold yellow]\n\n"
+                f"[bold green]{cmd_preview}[/bold green]\n\n"
+                f"[dim]Tip: Fast raw JSON export. Use 'scripts/intune_restore.py' to restore.[/dim]",
+                title="Command Preview",
+                border_style="yellow",
+            )
+        )
+
+        proceed = inquirer.confirm(message="Ready to export configuration backup?", default=True, style=TUI_STYLE).execute()
+
+        return {
+            "action": "backup" if proceed else "cancel",
+            "categories": categories,
+            "mock": False,
+            "unsanitize": unsanitize,
+            "output_dir": "deliverables",
+        }
 
     if action != "run":
         return {"action": action}
@@ -271,7 +333,7 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
         style=TUI_STYLE,
     ).execute()
 
-    output_dir = "docs"
+    output_dir = "deliverables"
 
     cmd_preview = build_cli_command(
         categories=categories,

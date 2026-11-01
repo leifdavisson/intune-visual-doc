@@ -87,10 +87,13 @@ flowchart TD
 5. **Step 5: Sanitization & Generation**:
    - Masks sensitive pre-shared keys and secrets by default.
    - Applies hygiene badges (`🟢 Assigned`, `🟡 Dormant`, `🛡️ Baseline`).
-   - Renders modular Markdown sheets in ASD-STE100 language.
-6. **Step 6: Compliance & Maintenance**:
+   - Renders modular Markdown sheets in ASD-STE100 language under timestamped `deliverables/` directories.
+   - Updates the `deliverables/latest` pointer and historical deliverables catalog.
+6. **Step 6: Compliance, Backup & Safe Restore**:
+   - Exports fast raw JSON backups (`intunedoc backup`) with `backup_manifest.json` in seconds.
    - Runs `intunedoc lint-ste` to guarantee standard compliance.
    - Tracks configuration drift with `intunedoc diff`.
+   - Restores policies safely with `scripts/intune_restore.py` (assignments stripped, collision checks, dry-run mode).
    - Offers `intunedoc logout` to wipe all local credentials.
 
 ---

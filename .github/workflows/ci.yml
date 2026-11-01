@@ -9,13 +9,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -28,3 +32,8 @@ jobs:
 
       - name: Verify ASD-STE100 Documentation Compliance
         run: intunedoc lint-ste --directory docs
+
+      - name: Verify Markdown Line Lengths (<= 281 chars)
+        run: |
+          awk 'length > 281 {print FILENAME ":" FNR ":" length; found=1} END {exit found}' \
+            README.md AGENTS.md CLAUDE.md docs/WORKFLOW.md docs/PARANOID_ADMIN_SETUP.md docs/adr/*.md

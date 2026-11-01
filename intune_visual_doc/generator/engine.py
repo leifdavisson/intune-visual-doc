@@ -56,12 +56,25 @@ class DocGenerator:
                 if t_name and t_name not in actor_map:
                     actor_map[t_name] = ev.get("actor")
 
+        from ..visual.screenshot import build_blade_urls
+
+        seen_slugs: Dict[str, set] = {}
         for p in policies:
             name_raw = p.get("name")
             p_name = name_raw.strip().lower() if (name_raw and isinstance(name_raw, str)) else ""
             if p_name and p_name in actor_map:
                 p["last_modified_by"] = actor_map[p_name]
-            p["slug"] = slugify(name_raw or "policy")
+            cat_key = p.get("category", "configuration")
+            base_slug = slugify(name_raw or "policy")
+            used = seen_slugs.setdefault(cat_key, set())
+            if base_slug in used:
+                p_id_str = slugify(str(p.get("id") or "dup"))[:12]
+                base_slug = f"{base_slug}-{p_id_str}"
+            used.add(base_slug)
+            p["slug"] = base_slug
+            p["blade_url"] = build_blade_urls(p).get("overview", "https://intune.microsoft.com")
+            if p.get("description") and isinstance(p.get("description"), str):
+                p["description"] = " ".join(p["description"].split())
             # Sanitize settings
             p["settings"] = sanitize_settings_list(p.get("settings", []), unsanitize=self.unsanitize)
 
@@ -105,16 +118,23 @@ class DocGenerator:
             },
         }
 
+        label_to_toc = {
+            "Endpoint Security": "endpoint_security",
+            "Device Script": "scripts",
+            "Enrollment Configuration": "enrollment",
+        }
+
         for p in policies:
             cat = p.get("category", "configuration")
-            if cat not in categories_dict:
-                categories_dict[cat] = {
-                    "title": p.get("category_label", cat.title()),
+            toc_bucket = label_to_toc.get(p.get("category_label", ""), cat)
+            if toc_bucket not in categories_dict:
+                categories_dict[toc_bucket] = {
+                    "title": p.get("category_label", toc_bucket.title()),
                     "learn_title": "Microsoft Learn Intune",
                     "learn_url": "https://learn.microsoft.com/en-us/mem/intune/",
                     "policies": [],
                 }
-            categories_dict[cat]["policies"].append(p)
+            categories_dict[toc_bucket]["policies"].append(p)
 
         # Render individual policy markdown files
         policy_tmpl = self.env.get_template("policy.md.jinja2")
@@ -124,11 +144,13 @@ class DocGenerator:
             cat_dir = os.path.join(self.output_dir, cat)
             os.makedirs(cat_dir, exist_ok=True)
 
-            # Check screenshots
+            # Check screenshots (use map or auto-discover existing valid captures on disk)
             p_id = p.get("id")
             shots = screenshots_map.get(p_id, {})
-            ov_abs = shots.get("overview")
-            pr_abs = shots.get("properties")
+            default_ov = os.path.join(self.output_dir, "assets", "screenshots", cat, p["slug"], "overview.png")
+            default_pr = os.path.join(self.output_dir, "assets", "screenshots", cat, p["slug"], "properties.png")
+            ov_abs = shots.get("overview") or (default_ov if os.path.exists(default_ov) else None)
+            pr_abs = shots.get("properties") or (default_pr if os.path.exists(default_pr) else None)
 
             # Relative paths for markdown links
             ov_rel = os.path.relpath(ov_abs, cat_dir) if ov_abs else None
@@ -167,10 +189,14 @@ class DocGenerator:
 
         # Compute tenant warnings and hygiene alerts
         unassigned_policies = [p for p in policies if not p.get("assignments")]
-        high_impact_events = [
-            ev for ev in audit_events
-            if any(kw in str(ev.get("activity") or "").lower() for kw in ("delete", "remove", "wipe", "retire", "create", "update", "assign"))
-        ]
+        high_impact_events = []
+        for ev in audit_events:
+            act_str = str(ev.get("activity") or ev.get("action") or "")
+            if any(kw in act_str.lower() for kw in ("delete", "remove", "wipe", "retire", "create", "update", "assign", "patch")):
+                ev_copy = dict(ev)
+                ev_copy.setdefault("activity", act_str or "Update")
+                ev_copy.setdefault("status", "success")
+                high_impact_events.append(ev_copy)
 
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -213,9 +239,33 @@ class DocGenerator:
         with open(index_path, "w", encoding="utf-8") as f:
             f.write(rendered_index)
 
+        # Write disaster recovery backup manifest
+        manifest = {
+            "version": "1.0",
+            "exported_at": now_str,
+            "generator_user": generator_user,
+            "unsanitized": self.unsanitize,
+            "total_policies": len(policies),
+            "policies": [
+                {
+                    "name": p.get("name"),
+                    "id": p.get("id"),
+                    "category": p.get("category"),
+                    "slug": p.get("slug"),
+                    "odata_type": (p.get("raw") or {}).get("@odata.type", ""),
+                    "raw_json_path": f"raw_json/{p.get('category')}/{p.get('slug')}.json",
+                }
+                for p in policies
+            ],
+        }
+        manifest_path = os.path.join(self.output_dir, "backup_manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+
         return {
             "index_path": index_path,
             "warnings_path": warnings_path,
+            "manifest_path": manifest_path,
             "total_policies": len(policies),
             "stats": stats,
         }

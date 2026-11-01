@@ -79,3 +79,44 @@ def test_collectors_device_enrollment_configurations():
     p = profiles[0]
     assert p["id"] == "enroll-1"
     assert p["category_label"] == "Enrollment Configuration"
+
+
+def test_collectors_recursive_settings_catalog_flattening():
+    """Verify nested choiceSettingValue children and collection values are recursively extracted."""
+    mock_client = MagicMock()
+    mock_client.get_all_pages.return_value = [
+        {
+            "id": "sc-nested-1",
+            "name": "Defender Security Baseline",
+            "templateReference": {"templateFamily": "baseline"},
+            "assignments": [],
+            "settings": [
+                {
+                    "settingInstance": {
+                        "settingDefinitionId": "device_vendor_msft_policy_config_deviceinstallation_prevent",
+                        "choiceSettingValue": {
+                            "value": "device_vendor_msft_policy_config_deviceinstallation_prevent_1",
+                            "children": [
+                                {
+                                    "settingDefinitionId": "device_vendor_msft_policy_config_deny_list",
+                                    "simpleSettingCollectionValue": [
+                                        {"value": "{d48179be-ec20-11d1-b6b8-00c04fa372a7}"}
+                                    ],
+                                }
+                            ],
+                        },
+                    }
+                }
+            ],
+        }
+    ]
+
+    collector = PolicyCollector(mock_client)
+    policies = collector.get_configuration_policies()
+    assert len(policies) == 1
+    pol = policies[0]
+    assert pol["category_label"] == "Endpoint Security"
+    assert len(pol["settings"]) == 2
+    assert pol["settings"][0]["value"] == "1"
+    assert pol["settings"][1]["value"] == "{d48179be-ec20-11d1-b6b8-00c04fa372a7}"
+

@@ -14,10 +14,11 @@
 - **Created Date**: {{ policy.created or "Unknown" }}
 - **Last Modified Date**: {{ policy.last_modified or "Unknown" }}
 - **Last Modified By**: {{ policy.last_modified_by or "System / Service Principal" }}
+- **Portal Deep Link**: [Open Policy Blade in Intune Portal]({{ policy.blade_url or "https://intune.microsoft.com" }})
 - **Reference**: [{{ learn_link.title }}]({{ learn_link.url }})
 
 ### Navigation Path for Technicians
-> 📍 **Portal Location**: [Microsoft Intune Admin Center](https://intune.microsoft.com) > **Devices** > **{{ policy.category_label }}** > **{{ policy.name }}**
+> 📍 **Portal Location**: [Microsoft Intune Admin Center](https://intune.microsoft.com) > **{{ policy.category_label }}** > **{{ policy.name }}**
 
 ---
 

@@ -1,0 +1,63 @@
+# Intune Tenant Warnings & Administrator Actions
+
+> 🕒 **Audit Stamp**: Generated on **{{ generated_at }}** by **{{ generator_user }}**
+>
+> 📍 **Portal Direct Link**: [Microsoft Intune Admin Center](https://intune.microsoft.com) | [Admin Audit Logs](https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/TenantAdminMenuBlade/~/auditLogs)
+
+This document highlights active hygiene warnings, dormant configurations, and high-impact administrative actions.
+Technicians must review these items regularly to maintain a clean and secure Intune tenant.
+
+---
+
+## 1. Table of Contents
+
+- [Dormant & Unassigned Policies (Hygiene Alerts)](#2-dormant--unassigned-policies-hygiene-alerts)
+- [High-Impact Administrative Actions](#3-high-impact-administrative-actions-past-{{ audit_days }}-days)
+- [Recommended Administrator Action Checklist](#4-recommended-administrator-action-checklist)
+- [Return to Tenant Documentation Index](README.md)
+
+---
+
+## 2. Dormant & Unassigned Policies (Hygiene Alerts)
+
+Unassigned policies have zero targeted groups or devices.
+Dormant policies cause configuration clutter and confusion during incident response.
+
+| Policy Name | Platform | Category | Last Modified | Admin Action Required |
+| :--- | :--- | :--- | :--- | :--- |
+{% for p in unassigned_policies %}
+| **[{{ p.name }}]({{ p.category }}/{{ p.slug }}.md)** | {{ p.platform }} | {{ p.category_label }} | {{ p.last_modified or "N/A" }} | Assign target group or delete from tenant |
+{% else %}
+| *No unassigned policies found.* | - | - | - | 🟢 All policies have active assignments |
+{% endfor %}
+
+---
+
+## 3. High-Impact Administrative Actions (Past {{ audit_days }} Days)
+
+Administrative actions involving policy creation, deletion, or modification.
+Verify all changes against authorized change management tickets.
+
+| Activity | Target Policy | Initiating Administrator | Timestamp | Status |
+| :--- | :--- | :--- | :--- | :--- |
+{% for ev in high_impact_events %}
+| `{{ ev.activity }}` | **{{ ev.target }}** | `{{ ev.actor }}` | {{ ev.timestamp }} | {% if ev.status == 'success' %}`🟢 Success`{% else %}`🔴 Failed`{% endif %} |
+{% else %}
+| *No high-impact admin events detected.* | - | - | - | 🟢 No recent lifecycle changes |
+{% endfor %}
+
+---
+
+## 4. Recommended Administrator Action Checklist
+
+Use this checklist during weekly or monthly tenant hygiene reviews:
+
+- [ ] **Clean Up Dormant Policies**: Review the unassigned policies in Section 2 and remove deprecated configurations.
+- [ ] **Verify Security Baseline Coverage**: Confirm all active Windows devices receive BitLocker and Antivirus baselines.
+- [ ] **Validate Administrative Changes**: Correlate recent audit events with district change approval tickets.
+- [ ] **Check Assignment Exclusions**: Ensure exclusion groups do not create security coverage gaps.
+- [ ] **Review App Deployment Status**: Retire unused store applications or legacy installers.
+
+---
+
+*Generated automatically by [intune-visual-doc](https://github.com/leifdavisson/intune_docs).*

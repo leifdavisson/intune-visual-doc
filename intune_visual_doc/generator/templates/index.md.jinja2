@@ -46,7 +46,7 @@ This repository documents active settings, group assignments, and visual portal 
 | Policy Name | Platform | Status | Last Modified | View Document |
 | :--- | :--- | :--- | :--- | :--- |
 {% for p in cat.policies %}
-| **{{ p.name }}** | {{ p.platform }} | {% if p.assignments %}`🟢 Assigned`{% else %}`🟡 Unassigned`{% endif %} | {{ p.last_modified or "N/A" }} | [Open Guide]({{ cat_id }}/{{ p.slug }}.md) |
+| **{{ p.name }}** | {{ p.platform }} | {% if p.assignments %}`🟢 Assigned`{% else %}`🟡 Unassigned`{% endif %} | {{ p.last_modified or "N/A" }} | [Open Guide]({{ p.category }}/{{ p.slug }}.md) |
 {% endfor %}
 
 {% endfor %}

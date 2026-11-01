@@ -30,10 +30,17 @@ def audit_text_ste(text: str, filename: str = "document.md") -> List[Dict[str, A
     issues = []
     lines = text.splitlines()
 
+    in_code_block = False
+
     for line_idx, line in enumerate(lines, start=1):
         clean_line = line.strip()
-        # Skip markdown headings, tables, code blocks, badges
-        if not clean_line or clean_line.startswith(("#", "|", "```", "`", ">", "-", "*", "!")):
+        if clean_line.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+        # Skip markdown headings, tables, code blocks, badges, HTML details tags
+        if not clean_line or clean_line.startswith(("#", "|", "`", ">", "-", "*", "!", "<")):
             continue
 
         # Split into sentences

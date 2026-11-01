@@ -56,12 +56,15 @@ class PolicyCollector:
         for p in raw:
             assignments = self.resolver.parse_assignments(p.get("assignments", []))
             settings = self._flatten_settings_catalog(p.get("settings", []))
+            t_ref = p.get("templateReference") or {}
+            t_family = str(t_ref.get("templateFamily") or "").lower()
+            is_ep_sec = t_family == "baseline" or t_family.startswith("endpointsecurity")
             policies.append({
                 "id": p.get("id"),
                 "name": p.get("name", "Unnamed Configuration"),
                 "description": p.get("description", ""),
                 "category": "configuration",
-                "category_label": "Settings Catalog",
+                "category_label": "Endpoint Security" if is_ep_sec else "Settings Catalog",
                 "platform": p.get("platforms", "windows10"),
                 "last_modified": p.get("lastModifiedDateTime"),
                 "created": p.get("createdDateTime"),
@@ -189,13 +192,28 @@ class PolicyCollector:
                 if k not in {"id", "displayName", "description", "createdDateTime", "lastModifiedDateTime",
                              "version", "assignments", "@odata.type", "@odata.context"} and v is not None and not isinstance(v, (list, dict)):
                     settings.append({"name": k, "value": str(v)})
+            e_id = str(e.get("id") or "")
+            disp_name = e.get("displayName", "Enrollment Configuration")
+            if disp_name == "All users and all devices" and "_" in e_id:
+                suffix = e_id.split("_", 1)[1].replace("Default", "").replace("Configuration", "")
+                if "EnrollmentCompletionPage" in suffix:
+                    suffix = "ESP"
+                elif "WindowsHelloForBusiness" in suffix:
+                    suffix = "WindowsHello"
+                disp_name = f"{disp_name} ({suffix})"
+            plat_str = (
+                e.get("@odata.type", "")
+                .replace("#microsoft.graph.", "")
+                .replace("deviceEnrollment", "")
+                .replace("Configuration", "")
+            )
             policies.append({
                 "id": e.get("id"),
-                "name": e.get("displayName", "Enrollment Configuration"),
+                "name": disp_name,
                 "description": e.get("description", ""),
                 "category": "configuration",
                 "category_label": "Enrollment Configuration",
-                "platform": e.get("@odata.type", "").replace("#microsoft.graph.", ""),
+                "platform": plat_str or "Windows",
                 "last_modified": e.get("lastModifiedDateTime"),
                 "created": e.get("createdDateTime"),
                 "assignments": assignments,
@@ -275,11 +293,15 @@ class PolicyCollector:
             resources = e.get("resources", [])
             target_name = resources[0].get("displayName", "Tenant Resource") if resources else "Tenant"
 
+            act_type = e.get("activityType") or e.get("displayName") or "Update"
+            res_status = str(e.get("activityResult") or "Success").strip().lower()
             events.append({
                 "id": e.get("id"),
                 "timestamp": e.get("activityDateTime"),
                 "actor": user_principal,
-                "action": e.get("activityType", "Update"),
+                "action": act_type,
+                "activity": act_type,
+                "status": "success" if res_status == "success" else "failed",
                 "category": e.get("category", "Device Configuration"),
                 "target": target_name,
                 "raw": e,
@@ -287,21 +309,60 @@ class PolicyCollector:
         return events
 
     def _flatten_settings_catalog(self, settings_raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Flatten nested Settings Catalog definition instances into rows."""
-        items = []
-        for s in settings_raw:
-            instance = s.get("settingInstance", {})
+        """Recursively flatten nested Settings Catalog definition instances and child collections into rows."""
+        items: List[Dict[str, Any]] = []
+
+        def _extract_instance(instance: Dict[str, Any]) -> None:
+            if not instance or not isinstance(instance, dict):
+                return
             def_id = instance.get("settingDefinitionId", "Setting")
-            val = instance.get("choiceSettingValue", {}).get("value") or \
-                  instance.get("simpleSettingValue", {}).get("value") or \
-                  instance.get("booleanSettingValue", {}).get("value")
+            choice_obj = instance.get("choiceSettingValue") or {}
+            simple_obj = instance.get("simpleSettingValue") or {}
+            bool_obj = instance.get("booleanSettingValue") or {}
+
+            val = (
+                choice_obj.get("value")
+                if choice_obj.get("value") is not None
+                else (
+                    simple_obj.get("value")
+                    if simple_obj.get("value") is not None
+                    else bool_obj.get("value")
+                )
+            )
+
+            if val is None:
+                simple_coll = instance.get("simpleSettingCollectionValue") or []
+                if simple_coll:
+                    val = ", ".join(str(x.get("value")) for x in simple_coll if x.get("value") is not None)
+
+            if val is None:
+                choice_coll = instance.get("choiceSettingCollectionValue") or []
+                if choice_coll:
+                    val = ", ".join(str(x.get("value")) for x in choice_coll if x.get("value") is not None)
+
+            val_str = str(val) if val is not None else "Configured"
+            prefix = f"{def_id}_"
+            if val_str.startswith(prefix) and len(val_str) > len(prefix):
+                val_str = val_str[len(prefix):]
 
             name = def_id.split("_")[-1] if "_" in def_id else def_id
             items.append({
                 "name": name,
                 "full_definition": def_id,
-                "value": str(val) if val is not None else "Configured",
+                "value": val_str,
             })
+
+            for child in choice_obj.get("children") or []:
+                _extract_instance(child)
+
+            for grp in instance.get("groupSettingCollectionValue") or []:
+                for child in grp.get("children") or []:
+                    _extract_instance(child)
+
+        for s in settings_raw:
+            inst = s.get("settingInstance") if "settingInstance" in s else s
+            _extract_instance(inst)
+
         return items
 
     def _flatten_compliance_settings(self, policy: Dict[str, Any]) -> List[Dict[str, Any]]:

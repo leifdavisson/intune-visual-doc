@@ -1,5 +1,5 @@
 """
-Configuration drift detector comparing current policies against docs/raw_json/ backups.
+Configuration drift detector comparing current policies against saved raw_json/ backups.
 """
 
 import os
@@ -7,18 +7,26 @@ import json
 from typing import Dict, Any, List
 from ..generator.engine import slugify
 from ..generator.sanitizer import sanitize_value
+from ..deliverables import get_latest_deliverables_dir
 
 
 def compare_with_backups(
     policies: List[Dict[str, Any]],
-    output_dir: str = "docs",
+    output_dir: str = "deliverables",
     unsanitize: bool = False,
 ) -> List[Dict[str, str]]:
     """
     Compare extracted policies against saved JSON backups in <output_dir>/raw_json/.
+    Automatically resolves the latest timestamped run if output_dir is a deliverables root.
     Returns a list of drift findings: Added, Modified, or Removed policies.
     """
-    raw_json_root = os.path.join(os.path.abspath(output_dir), "raw_json")
+    target_dir = os.path.abspath(output_dir)
+    if not os.path.exists(os.path.join(target_dir, "raw_json")):
+        latest = get_latest_deliverables_dir(output_dir)
+        if latest and os.path.exists(os.path.join(latest, "raw_json")):
+            target_dir = latest
+
+    raw_json_root = os.path.join(target_dir, "raw_json")
     findings: List[Dict[str, str]] = []
 
     seen_files = set()
