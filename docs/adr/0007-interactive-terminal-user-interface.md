@@ -1,6 +1,6 @@
 # ADR 0007: Interactive Terminal User Interface
 
-- **Status**: Accepted
+- **Status**: Accepted (Amended by ADR 0011 and ADR 0013)
 - **Date**: 2026-10-30
 - **Author**: Leif Davisson
 
@@ -12,16 +12,18 @@ They also want to copy the exact CLI command for future scheduled scripts.
 ## Decision
 
 1. Build an interactive TUI (`intune_visual_doc/tui.py`) with [Rich](https://github.com/Textualize/rich) and [InquirerPy](https://github.com/kazhala/InquirerPy), launched when running `intunedoc` (TTY with no arguments) or `intunedoc tui`.
-2. Order the 7 menu items in strict operational sequence:
+2. Order the 9 menu items in strict operational sequence:
    - `1. Check Prerequisites & Select Browser / Profile`
-   - `2. Authenticate & Hook Session (Graph + Portal)`
-   - `3. Run Documentation Generator (Extract & Screenshot)`
-   - `4. Verify ASD-STE100 Compliance (Linter)`
-   - `5. Audit Configuration Drift (Diff)`
-   - `6. Logout (Purge Stored Credentials)`
-   - `7. Exit`
-3. Render a live **Command Preview** panel showing the equivalent `intunedoc run ...` CLI invocation before execution.
-4. Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`) so interactive TUI runs always target real tenants.
+   - `2. Setup Read-Only SPN & Screenshot Maker (Optional: Server / CI/CD)`
+   - `3. Authenticate & Hook Session (Interactive Browser Login)`
+   - `4. Run Documentation Generator (Extract & Screenshot)`
+   - `5. Export Backup (Raw Configs Only — Fast, No Screenshots)`
+   - `6. Verify ASD-STE100 Compliance (Linter)`
+   - `7. Audit Configuration Drift (Diff)`
+   - `8. Logout (Purge Stored Credentials)`
+   - `9. Exit`
+3. Render a live **Command Preview** panel showing the equivalent `intunedoc run ...` or `intunedoc backup ...` CLI invocation before execution.
+4. Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`, `intunedoc backup --mock`) so interactive TUI runs always target real tenants.
 
 ## Consequences
 

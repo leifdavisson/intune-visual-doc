@@ -60,7 +60,7 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 Load only the ADR or skill matching your active task branch:
 
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
-  full decision table (`ADR 0001`–`ADR 0011`) when adding or amending architectural decisions.
+  full decision table (`ADR 0001`–`ADR 0013`) when adding or amending architectural decisions.
 - **Service Principals & Screenshot Service Account**:
   [`docs/adr/0011-read-only-spn-and-service-account-setup.md`](docs/adr/0011-read-only-spn-and-service-account-setup.md)
   and [`docs/PARANOID_ADMIN_SETUP.md`](docs/PARANOID_ADMIN_SETUP.md) —
@@ -81,6 +81,10 @@ Load only the ADR or skill matching your active task branch:
   [`docs/adr/0006-security-secret-sanitization-by-default.md`](docs/adr/0006-security-secret-sanitization-by-default.md),
   and [`docs/adr/0012-deliverables-folder-and-timestamped-runs.md`](docs/adr/0012-deliverables-folder-and-timestamped-runs.md) —
   when editing `generator/`, `deliverables.py`, `audit/ste_linter.py`, or Markdown docs.
+- **Disaster Recovery & Safe Restore Boundary**:
+  [`docs/adr/0013-configuration-backups-and-safe-restore-utility.md`](docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
+  and [`scripts/intune_restore.py`](scripts/intune_restore.py) —
+  when updating fast backup exports (`intunedoc backup`), raw JSON payloads, unassigned safety gates, or standalone restore routines.
 - **Workflow & TUI**: [`docs/WORKFLOW.md`](docs/WORKFLOW.md) and
   [`docs/adr/0007-interactive-terminal-user-interface.md`](docs/adr/0007-interactive-terminal-user-interface.md) —
   when updating TUI/CLI subcommands or architecture diagrams.

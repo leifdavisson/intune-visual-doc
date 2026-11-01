@@ -22,7 +22,7 @@ Opening dozens of concurrent browser tabs exhausts memory and triggers portal ra
    - Enrollment: `Microsoft_Intune_DeviceSettings/DevicesMenu/~/enrollment`
 3. **Dual Blade & IFrame Tab Capture**: Capture `overview.png` (`full_page=False`) first. Then click the `Properties` tab or scroll `Configuration settings` into view inside React iframes before capturing `properties.png`.
 4. **Login Guard & Visual Hygiene Markup**: Reject screenshots if the browser lands on `login.microsoftonline.com` or an Ibiza error page. Inject a status badge (`ASSIGNED POLICY` or `UNASSIGNED / DORMANT POLICY`) before capture and remove it afterward.
-5. **Slug Asset Hierarchy**: Save images to `docs/assets/screenshots/<category>/<policy-slug>/`.
+5. **Slug Asset Hierarchy**: Save images to `deliverables/<timestamp>/assets/screenshots/<category>/<policy-slug>/` (amended by ADR 0012).
 6. **Fault Tolerance**: Catch navigation or timeout errors per blade, insert a clean Markdown notice, and continue processing remaining policies.
 
 ## Consequences

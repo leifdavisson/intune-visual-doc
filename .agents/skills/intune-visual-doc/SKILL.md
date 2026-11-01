@@ -19,6 +19,8 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
 | :--- | :--- | :--- |
 | Add Intune category (Scripts, MAM, Autopilot) | `graph/collectors.py`, `visual/screenshot.py`, `generator/`, `cli.py`, `tui.py` | [ADR 0003](../../../docs/adr/0003-data-extraction-via-microsoft-graph.md), [ADR 0004](../../../docs/adr/0004-visual-capture-using-playwright.md) |
 | Setup read-only SPN or screenshot user | `setup_wizard.py`, `setup/`, `prerequisites.py`, `cli.py` | [ADR 0011](../../../docs/adr/0011-read-only-spn-and-service-account-setup.md) |
+| Manage runs & deliverables catalog | `deliverables.py`, `deliverables/README.md`, `cli.py` | [ADR 0012](../../../docs/adr/0012-deliverables-folder-and-timestamped-runs.md) |
+| Export backups & safe restore | `cli.py` (`cmd_backup`), `scripts/intune_restore.py`, `tui.py` | [ADR 0013](../../../docs/adr/0013-configuration-backups-and-safe-restore-utility.md) |
 | Debug browser auth or profiles | `prerequisites.py`, `auth/portal_auth.py`, `auth/graph_auth.py` | [ADR 0002](../../../docs/adr/0002-dual-authentication-and-session-persistence.md), [ADR 0008](../../../docs/adr/0008-browser-detection-and-credential-security.md) |
 | Edit templates, badges, redaction | `generator/templates/*.jinja2`, `generator/sanitizer.py`, `audit/ste_linter.py` | [ADR 0005](../../../docs/adr/0005-asd-ste100-documentation-standards.md), [ADR 0006](../../../docs/adr/0006-security-secret-sanitization-by-default.md) |
 | Audit configuration drift or offline mock | `audit/drift.py`, `mock_data/samples.py` | [ADR 0009](../../../docs/adr/0009-default-prerequisites-and-dependency-gates.md) |
@@ -36,7 +38,7 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
 2. **Portal Blade Deep Links (`intune_visual_doc/visual/screenshot.py`)**:
    - Add the `overview` and `properties` blade routes in `build_blade_urls()` under
      `https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings`.
-   - **Completion check**: `ScreenshotManager` saves captures under `docs/assets/screenshots/<category>/<policy-slug>/`
+   - **Completion check**: `ScreenshotManager` saves captures under `deliverables/<timestamp>/assets/screenshots/<category>/<policy-slug>/`
      (`overview.png` and `properties.png`) and catches timeouts without aborting the run.
 
 3. **Sanitization, Badges & Learn Links (`intune_visual_doc/generator/`)**:
@@ -47,14 +49,16 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
    - **Completion check**: Sensitive keys in both `settings` and `raw_json` mask to `[MASKED: ********]` when `unsanitize=False`.
 
 4. **CLI, TUI & Drift Wiring (`intune_visual_doc/cli.py`, `tui.py`)**:
-   - Register the category key in `cmd_run()`, `cmd_diff()`, and the TUI `categories` checkbox list in `tui.py`.
+   - Register the category key in `cmd_run()`, `cmd_diff()`, `cmd_backup()`, and the TUI `categories` checkbox list in `tui.py`.
    - Add unit tests in `tests/` covering flattening, badges, sanitization, and `ASD-STE100` compliance.
+   - Verify safe unassigned restore handling in `scripts/intune_restore.py` if restoring exported policies.
 
 5. **Verification Gate**:
    Run all checks in `.venv`:
    ```bash
    .venv/bin/pytest
    .venv/bin/intunedoc run --mock
+   .venv/bin/intunedoc backup --mock
    .venv/bin/intunedoc diff --mock
    .venv/bin/intunedoc lint-ste --directory docs
    awk 'length > 281 {print FILENAME ":" FNR ":" length; found=1} END {exit found}' \
