@@ -157,3 +157,45 @@ def test_credential_guard_evaluator():
     }
     verdict_pass = _eval_credential_guard([assigned_policy], meta)
     assert verdict_pass.status == "PASS"
+
+
+def test_rule_false_positive_resistance():
+    """Verify evaluator rules reject substring traps and misleading policy names."""
+    meta = {"detected_categories": {"configuration", "endpoint_security", "apps", "enrollment"}}
+
+    # Edge: 'Knowledge Base' policy with unrelated setting
+    edge_trap = {
+        "name": "Knowledge Base & Edge Case Documentation",
+        "category": "configuration",
+        "assignments": [{"type": "Included", "target": "All Users"}],
+        "settings": [{"name": "SmartScreenLevel", "value": "10"}],
+    }
+    assert _eval_edge_security([edge_trap], meta).status == "FAIL"
+
+    # ASR: 'Class Roster' or 'Password Reduction' should not trigger ASR rules
+    asr_trap = {
+        "name": "Class Roster & Password Reduction Helper",
+        "category": "configuration",
+        "assignments": [{"type": "Included", "target": "All Devices"}],
+        "settings": [{"name": "UserPasswordComplexity", "value": "High"}],
+    }
+    assert _eval_cis_asr([asr_trap], meta).status == "FAIL"
+
+    # MAM: 'Mamie Lab' without MAM DLP settings should not trigger MAM rules
+    mam_trap = {
+        "name": "Mamie Laboratory Equipment Config",
+        "category": "configuration",
+        "assignments": [{"type": "Included", "target": "All Users"}],
+        "settings": [{"name": "DeviceNamePattern", "value": "LAB-%RAND:5%"}],
+    }
+    assert _eval_mam_app_protection([mam_trap], meta).status == "FAIL"
+
+    # Credential Guard: 'VBScript Helpers' should not trigger Credential Guard
+    cg_trap = {
+        "name": "VBScript Legacy Helpers and Utilities",
+        "category": "configuration",
+        "assignments": [{"type": "Included", "target": "All Devices"}],
+        "settings": [{"name": "ScriptExecutionTimeout", "value": "60"}],
+    }
+    assert _eval_credential_guard([cg_trap], meta).status == "FAIL"
+

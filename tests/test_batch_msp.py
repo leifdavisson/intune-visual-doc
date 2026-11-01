@@ -141,3 +141,32 @@ def test_render_msp_html_matrix():
         assert "Cross-Tenant Security Heatmap" in content
         assert "Oakridge School District" in content
         assert "@media print" in content
+
+
+def test_run_msp_audit_batch_connection_error(monkeypatch):
+    """Verify live SPN connection errors are gracefully reported as Connection Error."""
+    def mock_get_token(*args, **kwargs):
+        raise ConnectionResetError("TLS handshake terminated by remote host")
+
+    monkeypatch.setattr("intune_visual_doc.auth.graph_auth.get_graph_token", mock_get_token)
+
+    live_target = TenantTarget(
+        name="Failing Live Tenant",
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        client_id="11111111-1111-1111-1111-111111111111",
+        client_secret="test-secret",
+    )
+
+    report = run_msp_audit_batch(
+        portfolio_name="Fault Tolerant Consortium",
+        targets=[live_target],
+        profile="balanced",
+    )
+
+    assert report.total_tenants == 1
+    t = report.tenants[0]
+    assert t.tenant_name == "Failing Live Tenant"
+    assert t.posture_tier == "Connection Error"
+    assert t.posture_badge == "⚠️"
+    assert any("Connection failed" in g for g in t.priority_gaps)
+

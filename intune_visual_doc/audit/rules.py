@@ -11,6 +11,7 @@ References:
 """
 
 from dataclasses import dataclass, field
+import re
 from typing import Dict, Any, List, Optional, Callable
 
 
@@ -551,9 +552,19 @@ def _eval_stig_asr(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> Eval
             observed_state="Category not in backup. Control not evaluated."
         )
 
-    matching = [p for p in policies if "asr" in p.get("name", "").lower() or "attack surface" in p.get("name", "").lower()]
-    assigned = [p for p in matching if _has_included_assignments(p)]
+    matching = []
+    for p in policies:
+        p_name = p.get("name", "")
+        if re.search(r'\b(asr|attack\s+surface\s+reduction)\b', p_name, re.IGNORECASE):
+            matching.append(p)
+            continue
+        vals = _get_setting_values(p)
+        for k in vals:
+            if re.search(r'attacksurfacereduction|device_vendor_msft_defender_attacksurfacereduction|blockcredentialstealing', k, re.IGNORECASE):
+                matching.append(p)
+                break
 
+    assigned = [p for p in matching if _has_included_assignments(p)]
     if assigned:
         names = [p.get("name", "") for p in assigned]
         return EvaluationVerdict(
@@ -590,14 +601,13 @@ def _eval_cis_asr(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> Evalu
 
     matching = []
     for p in policies:
-        p_name = p.get("name", "").lower()
-        if "asr" in p_name or "attack surface" in p_name or "reduction" in p_name:
+        p_name = p.get("name", "")
+        if re.search(r'\b(asr|attack\s+surface\s+reduction)\b', p_name, re.IGNORECASE):
             matching.append(p)
             continue
         vals = _get_setting_values(p)
         for k in vals:
-            k_lower = k.lower()
-            if any(term in k_lower for term in ("asr", "attacksurface", "lsass", "credentialsteal")):
+            if re.search(r'attacksurfacereduction|device_vendor_msft_defender_attacksurfacereduction|blockcredentialstealing', k, re.IGNORECASE):
                 matching.append(p)
                 break
 
@@ -638,15 +648,25 @@ def _eval_enrollment_restrictions(policies: List[Dict[str, Any]], meta: Dict[str
     blocks_personal = False
     for p in policies:
         cat = p.get("category", "").lower()
-        p_name = p.get("name", "").lower()
-        if "enrollment" in cat or "enrollment" in p_name or "restriction" in p_name:
+        p_name = p.get("name", "")
+        raw = p.get("raw", {})
+        odata = str(raw.get("@odata.type", "")).lower() if isinstance(raw, dict) else ""
+
+        is_enrollment = (
+            cat == "enrollment"
+            or "deviceenrollment" in odata
+            or bool(re.search(r'\b(enrollment\s+restriction|device\s+enrollment)\b', p_name, re.IGNORECASE))
+        )
+
+        vals = _get_setting_values(p)
+        has_enrollment_settings = any("personaldevice" in k.lower() for k in vals)
+
+        if is_enrollment or has_enrollment_settings:
             matching.append(p)
-            vals = _get_setting_values(p)
-            raw = p.get("raw", {})
             for k, v in vals.items():
                 if "personaldevice" in k.lower():
-                    v_str = str(v).lower()
-                    if "block" in v_str or "true" in v_str or v_str == "1":
+                    v_str = str(v).strip().lower()
+                    if v_str in ("block", "true", "1", "enabled") or v_str.startswith("1 ") or v_str.startswith("true "):
                         blocks_personal = True
             if isinstance(raw, dict):
                 plat = raw.get("platformRestrictions") or raw.get("windowsRestriction") or {}
@@ -697,17 +717,27 @@ def _eval_edge_security(policies: List[Dict[str, Any]], meta: Dict[str, Any]) ->
     matching = []
     smartscreen_enforced = False
     for p in policies:
-        p_name = p.get("name", "").lower()
-        if "edge" in p_name or "browser" in p_name:
-            matching.append(p)
+        p_name = p.get("name", "")
+        cat_lbl = p.get("category_label", "").lower()
+        is_edge_policy = (
+            bool(re.search(r'\b(microsoft\s+edge|edge\s+browser)\b', p_name, re.IGNORECASE))
+            or "edge" in cat_lbl
+        )
+
         vals = _get_setting_values(p)
-        for k, v in vals.items():
-            k_lower = k.lower()
-            if "smartscreen" in k_lower or "edge" in k_lower:
-                if p not in matching:
-                    matching.append(p)
-                if "smartscreen" in k_lower and ("true" in str(v).lower() or "1" in str(v) or "enabled" in str(v).lower()):
-                    smartscreen_enforced = True
+        has_edge_settings = any(
+            "microsoft_edge" in k.lower() or "device_vendor_msft_edge" in k.lower()
+            for k in vals
+        )
+
+        if is_edge_policy or has_edge_settings:
+            matching.append(p)
+            for k, v in vals.items():
+                k_lower = k.lower()
+                if "smartscreen" in k_lower:
+                    v_str = str(v).strip().lower()
+                    if v_str in ("true", "1", "enabled") or v_str.startswith("1 ") or v_str.startswith("true "):
+                        smartscreen_enforced = True
 
     assigned = [p for p in matching if _has_included_assignments(p)]
     if assigned and smartscreen_enforced:
@@ -752,16 +782,22 @@ def _eval_mam_app_protection(policies: List[Dict[str, Any]], meta: Dict[str, Any
 
     matching = []
     for p in policies:
-        cat = p.get("category", "").lower()
-        p_name = p.get("name", "").lower()
-        if "app" in cat or "protection" in p_name or "mam" in p_name:
-            matching.append(p)
+        p_name = p.get("name", "")
+        cat_lbl = p.get("category_label", "").lower()
+        raw = p.get("raw", {})
+        odata = str(raw.get("@odata.type", "")).lower() if isinstance(raw, dict) else ""
+
+        has_mam_name = bool(re.search(r'\b(mam|apps?\s+(?:\w+\s+)?protection|application\s+(?:\w+\s+)?protection)\b', p_name, re.IGNORECASE))
+        has_mam_type = "app protection" in cat_lbl or "managedappprotection" in odata
+
         vals = _get_setting_values(p)
-        for k in vals:
-            if any(term in k.lower() for term in ("dataprotection", "alloweddataingress", "pinrequired", "appprotection")):
-                if p not in matching:
-                    matching.append(p)
-                break
+        has_mam_settings = any(
+            any(term in k.lower() for term in ("dataprotection", "alloweddataingress", "pinrequired", "appprotection", "appdataencryption"))
+            for k in vals
+        )
+
+        if has_mam_type or (has_mam_name and (has_mam_settings or not vals)) or (p.get("category") == "apps" and has_mam_settings):
+            matching.append(p)
 
     assigned = [p for p in matching if _has_included_assignments(p)]
     if assigned:
@@ -798,15 +834,17 @@ def _eval_credential_guard(policies: List[Dict[str, Any]], meta: Dict[str, Any])
 
     matching = []
     for p in policies:
-        p_name = p.get("name", "").lower()
-        if "credential guard" in p_name or "device guard" in p_name or "vbs" in p_name:
-            matching.append(p)
+        p_name = p.get("name", "")
+        is_cg_policy = bool(re.search(r'\b(credential\s+guard|device\s+guard|virtualization[- ]based\s+security)\b', p_name, re.IGNORECASE))
+
         vals = _get_setting_values(p)
-        for k in vals:
-            if any(term in k.lower() for term in ("credentialguard", "virtualizationbasedsecurity", "deviceguard")):
-                if p not in matching:
-                    matching.append(p)
-                break
+        has_cg_settings = any(
+            any(term in k.lower() for term in ("credentialguard", "virtualizationbasedsecurity", "deviceguard", "device_vendor_msft_deviceguard"))
+            for k in vals
+        )
+
+        if is_cg_policy or has_cg_settings:
+            matching.append(p)
 
     assigned = [p for p in matching if _has_included_assignments(p)]
     if assigned:

@@ -200,3 +200,66 @@ def test_render_drift_html_report():
         assert "DefaultInboundAction" in content
         assert "1 (Block)" in content
         assert "0 (Allow)" in content
+
+
+def test_drift_html_secret_sanitization():
+    """Verify secrets are masked by default and only revealed with unsanitize=True."""
+    p_base = {
+        "id": "wifi-01",
+        "name": "Corporate Wi-Fi Profile",
+        "category": "configuration",
+        "settings": [
+            {"name": "PreSharedKey", "value": "SuperSecretWifiPassphrase123"},
+        ],
+    }
+    p_target = {
+        "id": "wifi-01",
+        "name": "Corporate Wi-Fi Profile",
+        "category": "configuration",
+        "settings": [
+            {"name": "PreSharedKey", "value": "RotatedSecretKey4567890"},
+        ],
+    }
+
+    # Default: unsanitize=False -> masked
+    diffs_masked = compare_policies_granular([p_base], [p_target], unsanitize=False)
+    assert len(diffs_masked) == 1
+    sd_masked = diffs_masked[0].setting_diffs[0]
+    assert "[MASKED" in str(sd_masked.old_value)
+    assert "[MASKED" in str(sd_masked.new_value)
+    assert "SuperSecretWifiPassphrase123" not in str(sd_masked.old_value)
+    assert "RotatedSecretKey4567890" not in str(sd_masked.new_value)
+
+    # With unsanitize=True -> preserved
+    diffs_raw = compare_policies_granular([p_base], [p_target], unsanitize=True)
+    assert len(diffs_raw) == 1
+    sd_raw = diffs_raw[0].setting_diffs[0]
+    assert sd_raw.old_value == "SuperSecretWifiPassphrase123"
+    assert sd_raw.new_value == "RotatedSecretKey4567890"
+
+    # HTML render masking test
+    report_data = {
+        "baseline_label": "base",
+        "target_label": "target",
+        "baseline_dir": "/tmp/b",
+        "target_dir": "/tmp/t",
+        "diffs": diffs_masked,
+        "stats": {
+            "total_policies_target": 1,
+            "added": 0,
+            "removed": 0,
+            "modified": 1,
+            "unchanged": 0,
+            "total_setting_changes": 1,
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        out_html = os.path.join(tmp_dir, "DRIFT_REPORT.html")
+        render_drift_html_report(report_data, out_html, unsanitize=False)
+        with open(out_html, "r", encoding="utf-8") as f:
+            html_text = f.read()
+
+        assert "[MASKED" in html_text
+        assert "SuperSecretWifiPassphrase123" not in html_text
+        assert "RotatedSecretKey4567890" not in html_text
+

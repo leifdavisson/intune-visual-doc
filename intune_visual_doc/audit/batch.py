@@ -146,16 +146,111 @@ def _get_simulated_tenant_policies(tenant_index: int) -> List[Dict[str, Any]]:
     """Generate variations of mock policies across tenants for realistic portfolio analysis."""
     base = get_mock_policies()
     if tenant_index == 0:
-        # High security tenant: BitLocker, Defender, Firewall, WUfB configured and assigned
-        p1 = dict(base[0])
-        p1["settings"] = list(base[0]["settings"]) + [
-            {"name": "DomainFirewallEnabled", "value": "1"},
-            {"name": "RealTimeProtection", "value": "True"},
-            {"name": "DeferQualityUpdatesPeriodInDays", "value": "3"},
-            {"name": "SmartScreenEnabled", "value": "True"},
-            {"name": "personalDeviceEnrollmentBlocked", "value": "True"},
+        # High security tenant: baseline controls configured and assigned
+        inc = [{"type": "Included", "target": "All Devices"}]
+        inc_users = [{"type": "Included", "target": "All Users"}]
+        return [
+            {
+                "id": "oak-enc-001",
+                "name": "BitLocker - Windows 11 Enterprise Baseline",
+                "category": "configuration",
+                "category_label": "Settings Catalog",
+                "assignments": inc,
+                "settings": [
+                    {"name": "RequireDeviceEncryption", "value": "1 (Enabled)"},
+                    {"name": "EncryptionMethodWithXtsOs", "value": "XtsAes256"},
+                ],
+            },
+            {
+                "id": "oak-av-001",
+                "name": "Microsoft Defender Antivirus & Tamper Protection",
+                "category": "endpoint_security",
+                "category_label": "Antivirus",
+                "assignments": inc,
+                "settings": [
+                    {"name": "RealTimeProtection", "value": "True"},
+                    {"name": "TamperProtection", "value": "1 (Enabled)"},
+                ],
+            },
+            {
+                "id": "oak-fw-001",
+                "name": "Windows Host Firewall Baseline",
+                "category": "endpoint_security",
+                "category_label": "Firewall",
+                "assignments": inc,
+                "settings": [
+                    {"name": "DomainFirewallEnabled", "value": "True"},
+                    {"name": "PrivateFirewallEnabled", "value": "True"},
+                    {"name": "PublicFirewallEnabled", "value": "True"},
+                    {"name": "DefaultInboundAction", "value": "1 (Block)"},
+                ],
+            },
+            {
+                "id": "oak-wufb-001",
+                "name": "Windows Quality & Security Update Ring (WUfB)",
+                "category": "configuration",
+                "category_label": "Update Rings",
+                "assignments": inc,
+                "settings": [
+                    {"name": "DeferQualityUpdatesPeriodInDays", "value": "3"},
+                ],
+            },
+            {
+                "id": "oak-laps-001",
+                "name": "Windows Local Administrator Password Solution (LAPS)",
+                "category": "endpoint_security",
+                "category_label": "Account Protection",
+                "assignments": inc,
+                "settings": [
+                    {"name": "BackupDirectory", "value": "1 (AzureAD)"},
+                    {"name": "PasswordAgeDays", "value": "30"},
+                ],
+            },
+            {
+                "id": "oak-asr-001",
+                "name": "Defender Attack Surface Reduction (ASR) Rules",
+                "category": "endpoint_security",
+                "category_label": "Attack Surface Reduction",
+                "assignments": inc,
+                "settings": [
+                    {"name": "BlockCredentialStealingFromLSASS", "value": "1 (Block)"},
+                ],
+            },
+            {
+                "id": "oak-enr-001",
+                "name": "District Device Enrollment Restrictions (Block Personal BYOD)",
+                "category": "enrollment",
+                "category_label": "Enrollment Restrictions",
+                "assignments": inc_users,
+                "settings": [{"name": "personalDeviceEnrollmentBlocked", "value": "True"}],
+                "raw": {"platformRestrictions": {"personalDeviceEnrollmentBlocked": True}},
+            },
+            {
+                "id": "oak-edge-001",
+                "name": "Microsoft Edge Enterprise Security Baseline",
+                "category": "configuration",
+                "category_label": "Settings Catalog",
+                "assignments": inc,
+                "settings": [
+                    {"name": "SmartScreenEnabled", "value": "True"},
+                    {"name": "SmartScreenPuaEnabled", "value": "True"},
+                ],
+            },
+            {
+                "id": "oak-mam-001",
+                "name": "M365 MAM App Protection Policy (iOS & Android)",
+                "category": "apps",
+                "category_label": "App Protection Policy",
+                "assignments": inc_users,
+                "settings": [
+                    {"name": "allowedDataIngress", "value": "allApps"},
+                    {"name": "pinRequired", "value": "True"},
+                    {"name": "appDataEncryption", "value": "True"},
+                ],
+                "raw": {"@odata.type": "#microsoft.graph.targetedManagedAppProtection"},
+            },
+            dict(base[1]),  # Staff and Student Device Compliance Policy
         ]
-        return [p1, base[1]]
     elif tenant_index == 1:
         # Standard baseline: standard mock set
         return base
@@ -199,11 +294,11 @@ def run_msp_audit_batch(
         elif target.tenant_id and target.client_id and target.client_secret:
             # Live SPN query
             try:
-                from ..auth.spn_auth import get_spn_token
+                from ..auth.graph_auth import get_graph_token
                 from ..graph.client import GraphClient
                 from ..graph.collectors import PolicyCollector
 
-                token = get_spn_token(
+                token = get_graph_token(
                     tenant_id=target.tenant_id,
                     client_id=target.client_id,
                     client_secret=target.client_secret,
@@ -222,9 +317,23 @@ def run_msp_audit_batch(
                 detected_cats = {p.get("category", "").lower() for p in policies}
                 target_path = f"Graph API ({target.tenant_id})"
             except Exception as e:
-                console.print(f"[yellow]⚠️ Could not query live tenant {target.name}: {e}[/yellow]")
-                policies = []
-                detected_cats = set()
+                console.print(f"[bold red]❌ Failed to query live tenant {target.name}: {e}[/bold red]")
+                outcomes.append(TenantAuditOutcome(
+                    tenant_name=target.name,
+                    target_path=f"Graph API ({target.tenant_id}) [Failed]",
+                    posture_badge="⚠️",
+                    posture_tier="Connection Error",
+                    percentage=0.0,
+                    passed=0,
+                    warn=0,
+                    fail=0,
+                    evaluated=0,
+                    omitted=0,
+                    dormant_policies=0,
+                    total_policies=0,
+                    priority_gaps=[f"Connection failed: {str(e)}"],
+                ))
+                continue
         else:
             policies = []
             detected_cats = set()
@@ -258,10 +367,11 @@ def run_msp_audit_batch(
         ))
 
     total = len(outcomes)
-    avg_comp = sum(o.percentage for o in outcomes) / total if total > 0 else 0.0
-    compliant = sum(1 for o in outcomes if o.percentage >= 80.0)
-    warning = sum(1 for o in outcomes if 50.0 <= o.percentage < 80.0)
-    critical = sum(1 for o in outcomes if o.percentage < 50.0)
+    audited_tenants = [o for o in outcomes if o.posture_tier != "Connection Error"]
+    avg_comp = sum(o.percentage for o in audited_tenants) / len(audited_tenants) if audited_tenants else 0.0
+    compliant = sum(1 for o in audited_tenants if o.percentage >= 80.0)
+    warning = sum(1 for o in audited_tenants if 50.0 <= o.percentage < 80.0)
+    critical = sum(1 for o in audited_tenants if o.percentage < 50.0)
 
     # Build heatmap rows
     heatmap_rows: Dict[str, Dict[str, Any]] = {}

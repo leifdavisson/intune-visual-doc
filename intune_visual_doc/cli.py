@@ -387,6 +387,7 @@ def cmd_diff(args):
     export_html = getattr(args, "html", False)
     use_mock = getattr(args, "mock", False)
     base_dir = getattr(args, "output_dir", "deliverables")
+    unsanitize = getattr(args, "unsanitize", False)
 
     if from_run:
         # Offline run-to-run comparison
@@ -396,12 +397,12 @@ def cmd_diff(args):
         else:
             target_dir = get_latest_deliverables_dir(base_dir) or os.path.abspath(base_dir)
 
-        report = compare_backup_runs(baseline_dir, target_dir)
+        report = compare_backup_runs(baseline_dir, target_dir, unsanitize=unsanitize)
         display_granular_drift_table(report)
 
         if export_html:
             html_path = os.path.join(target_dir, "DRIFT_REPORT.html")
-            out_file = render_drift_html_report(report, html_path)
+            out_file = render_drift_html_report(report, html_path, unsanitize=unsanitize)
             console.print(f"👉 [bold underline]Visual Drift HTML Report:[/bold underline] file://{out_file}\n")
         return
 
@@ -436,7 +437,7 @@ def cmd_diff(args):
     from .audit.posture import load_policies_from_backup
     saved_policies, scope = load_policies_from_backup(target_dir)
 
-    diffs = compare_policies_granular(saved_policies, policies, baseline_dir=target_dir)
+    diffs = compare_policies_granular(saved_policies, policies, baseline_dir=target_dir, unsanitize=unsanitize)
     added = sum(1 for d in diffs if d.status == "Added")
     removed = sum(1 for d in diffs if d.status == "Removed")
     modified = sum(1 for d in diffs if d.status == "Modified")
@@ -463,7 +464,7 @@ def cmd_diff(args):
 
     if export_html:
         html_path = os.path.join(target_dir, "DRIFT_REPORT.html")
-        out_file = render_drift_html_report(report, html_path)
+        out_file = render_drift_html_report(report, html_path, unsanitize=unsanitize)
         console.print(f"👉 [bold underline]Visual Drift HTML Report:[/bold underline] file://{out_file}\n")
 
 
@@ -819,6 +820,7 @@ def main():
     diff_parser.add_argument("--to", dest="to_run", type=str, default=None, help="Target backup run directory (defaults to latest)")
     diff_parser.add_argument("--html", action="store_true", help="Generate interactive DRIFT_REPORT.html with visual comparisons")
     diff_parser.add_argument("--mock", action="store_true", help="Compare mock policies against saved backups")
+    diff_parser.add_argument("--unsanitize", action="store_true", help="Preserve unmasked raw configuration secrets in diff and drift reports")
 
     # audit subcommand
     audit_parser = subparsers.add_parser("audit", help="Audit tenant security posture and best-practice baseline alignment")

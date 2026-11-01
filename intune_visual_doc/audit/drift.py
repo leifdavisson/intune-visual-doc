@@ -86,10 +86,12 @@ def compare_policies_granular(
     target_policies: List[Dict[str, Any]],
     baseline_dir: Optional[str] = None,
     target_dir: Optional[str] = None,
+    unsanitize: bool = False,
 ) -> List[PolicyDiff]:
     """
     Compare two lists of policies at the individual setting and assignment level.
     Identifies added, removed, and modified parameters.
+    Sanitizes values unless unsanitize=True is passed.
     """
     diffs: List[PolicyDiff] = []
     base_by_key: Dict[str, Dict[str, Any]] = {}
@@ -125,7 +127,7 @@ def compare_policies_granular(
                         full_definition=s.get("full_definition", s.get("name", "")),
                         change_type="Added",
                         old_value=None,
-                        new_value=s.get("value"),
+                        new_value=s.get("value") if unsanitize else sanitize_value(s.get("name", "setting"), s.get("value")),
                     )
                     for s in _normalize_settings(p.get("settings"))
                 ],
@@ -163,32 +165,39 @@ def compare_policies_granular(
         for k in all_keys:
             if k not in base_settings:
                 s = targ_settings[k]
+                s_name = s.get("name", k)
+                raw_val = s.get("value")
                 s_diffs.append(SettingDiff(
-                    name=s.get("name", k),
+                    name=s_name,
                     full_definition=k,
                     change_type="Added",
                     old_value=None,
-                    new_value=s.get("value"),
+                    new_value=raw_val if unsanitize else sanitize_value(s_name, raw_val),
                 ))
             elif k not in targ_settings:
                 s = base_settings[k]
+                s_name = s.get("name", k)
+                raw_val = s.get("value")
                 s_diffs.append(SettingDiff(
-                    name=s.get("name", k),
+                    name=s_name,
                     full_definition=k,
                     change_type="Removed",
-                    old_value=s.get("value"),
+                    old_value=raw_val if unsanitize else sanitize_value(s_name, raw_val),
                     new_value=None,
                 ))
             else:
                 old_v = str(base_settings[k].get("value", ""))
                 new_v = str(targ_settings[k].get("value", ""))
                 if old_v != new_v:
+                    s_name = targ_settings[k].get("name", k)
+                    val_old = old_v if unsanitize else sanitize_value(s_name, old_v)
+                    val_new = new_v if unsanitize else sanitize_value(s_name, new_v)
                     s_diffs.append(SettingDiff(
-                        name=targ_settings[k].get("name", k),
+                        name=s_name,
                         full_definition=k,
                         change_type="Modified",
-                        old_value=old_v,
-                        new_value=new_v,
+                        old_value=val_old,
+                        new_value=val_new,
                     ))
 
         # Compare assignments
@@ -265,7 +274,7 @@ def compare_policies_granular(
                         name=s.get("name", "setting"),
                         full_definition=s.get("full_definition", s.get("name", "")),
                         change_type="Removed",
-                        old_value=s.get("value"),
+                        old_value=s.get("value") if unsanitize else sanitize_value(s.get("name", "setting"), s.get("value")),
                         new_value=None,
                     )
                     for s in _normalize_settings(base_p.get("settings"))
@@ -276,7 +285,11 @@ def compare_policies_granular(
     return diffs
 
 
-def compare_backup_runs(baseline_dir: str, target_dir: str) -> Dict[str, Any]:
+def compare_backup_runs(
+    baseline_dir: str,
+    target_dir: str,
+    unsanitize: bool = False,
+) -> Dict[str, Any]:
     """
     Compare two historical backup directories offline at the individual setting level.
     """
@@ -290,6 +303,7 @@ def compare_backup_runs(baseline_dir: str, target_dir: str) -> Dict[str, Any]:
         targ_policies,
         baseline_dir=base_scope.get("run_dir"),
         target_dir=targ_scope.get("run_dir"),
+        unsanitize=unsanitize,
     )
 
     added = sum(1 for d in diffs if d.status == "Added")
@@ -412,9 +426,14 @@ def display_granular_drift_table(drift_report: Dict[str, Any]) -> None:
         console.print()
 
 
-def render_drift_html_report(drift_report: Dict[str, Any], output_path: str) -> str:
+def render_drift_html_report(
+    drift_report: Dict[str, Any],
+    output_path: str,
+    unsanitize: bool = False,
+) -> str:
     """
     Render standalone HTML drift report with visual side-by-side screenshots.
+    Values are sanitized unless unsanitize=True is explicitly passed.
     """
     from datetime import datetime, timezone
     from jinja2 import Environment, FileSystemLoader
@@ -424,6 +443,15 @@ def render_drift_html_report(drift_report: Dict[str, Any], output_path: str) -> 
     template = env.get_template("drift_report.html.jinja2")
 
     active_diffs = [d for d in drift_report["diffs"] if d.status != "Unchanged"]
+
+    if not unsanitize:
+        # Guarantee sanitization pass over setting diff values
+        for d in active_diffs:
+            for s in d.setting_diffs:
+                if s.old_value is not None:
+                    s.old_value = sanitize_value(s.name, s.old_value)
+                if s.new_value is not None:
+                    s.new_value = sanitize_value(s.name, s.new_value)
 
     rendered = template.render(
         baseline_label=drift_report["baseline_label"],

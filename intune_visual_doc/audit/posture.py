@@ -414,8 +414,7 @@ def render_executive_html_report(
     Render standalone EXECUTIVE_AUDIT.html presentation bundle.
     Embeds full stop-light scorecard, KPI metrics, and framework citations.
     """
-    if profile:
-        evaluation["profile"] = profile
+    active_profile = profile or evaluation.get("profile", "balanced")
     tmpl_dir = os.path.join(os.path.dirname(__file__), "..", "generator", "templates")
     env = Environment(loader=FileSystemLoader(tmpl_dir), autoescape=True, trim_blocks=True, lstrip_blocks=True)
     tmpl = env.get_template("executive_audit.html.jinja2")
@@ -446,7 +445,7 @@ def render_executive_html_report(
         generated_at=now_str,
         generator_user=generator_user,
         tenant_label=tenant_label,
-        profile_name=evaluation["profile"].replace("-", " ").title(),
+        profile_name=active_profile.replace("-", " ").title(),
         posture_badge=evaluation["posture_badge"],
         posture_tier=evaluation["posture_tier"],
         stats=evaluation["stats"],
