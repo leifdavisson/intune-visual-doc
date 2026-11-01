@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Automated Microsoft Intune settings documentation with Microsoft Graph and Playwright visual screenshots in ASD-STE100"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "AGPL-3.0-or-later" }
+license = "AGPL-3.0-or-later"
 authors = [
     { name = "Leif Davisson" }
 ]
@@ -28,7 +28,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: System Administrators",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
@@ -64,3 +63,9 @@ Issues = "https://github.com/leifdavisson/intune-visual-doc/issues"
 [project.scripts]
 intunedoc = "intune_visual_doc.cli:main"
 intune-restore = "scripts.intune_restore:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["intune_visual_doc*", "scripts*"]
+exclude = ["setup*", "deliverables*", "tests*", "docs*", "examples*"]
+

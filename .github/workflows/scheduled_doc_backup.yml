@@ -1,10 +1,24 @@
-name: Scheduled Intune Documentation Backup
+name: Scheduled Intune Documentation & Backup
 
 on:
   schedule:
     # Run every Sunday at 02:00 UTC
     - cron: "0 2 * * 0"
   workflow_dispatch:
+    inputs:
+      operation:
+        description: "Operation to run"
+        required: true
+        default: "backup"
+        type: choice
+        options:
+          - backup
+          - run
+      category:
+        description: "Comma-separated policy categories (or 'all')"
+        required: false
+        default: "all"
+        type: string
 
 permissions:
   contents: write
@@ -25,18 +39,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          playwright install --with-deps chromium
 
-      - name: Run Documentation Extraction
+      - name: Run Unattended Intune Backup
+        if: ${{ inputs.operation == 'backup' || github.event_name == 'schedule' }}
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
-          intunedoc run --audit-days 30
+          intunedoc backup --category "${{ inputs.category || 'all' }}" --unsanitize
 
-      - name: Commit & Push Changes
+      - name: Run Documentation Generation (Headless)
+        if: ${{ inputs.operation == 'run' }}
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          intunedoc run --no-screenshots --category "${{ inputs.category || 'all' }}" --audit-days 30
+
+      - name: Commit & Push Deliverables
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore(docs): automated weekly Intune documentation update"
-          file_pattern: "docs/*"
+          commit_message: "chore(deliverables): automated Intune configuration backup"
+          file_pattern: "deliverables/*"
