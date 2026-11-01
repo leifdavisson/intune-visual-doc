@@ -187,3 +187,83 @@ def test_render_audit_report_content_and_ste(tmp_path):
     # Verify STE compliance on generated report
     ste_issues = audit_text_ste(content)
     assert len(ste_issues) == 0
+
+
+def test_firewall_rule_evaluates_compliance_active_firewall():
+    """Verify Graph activeFirewallRequired compliance triggers WARN, not FAIL."""
+    from intune_visual_doc.audit.rules import _eval_host_firewall
+
+    comp_policy = {
+        "name": "Device Compliance",
+        "category": "compliance",
+        "assignments": [{"type": "Included", "target": "Target Group"}],
+        "settings": [
+            {"name": "activeFirewallRequired", "full_definition": "activeFirewallRequired", "value": "True"}
+        ]
+    }
+    meta = {"detected_categories": {"compliance"}}
+    verdict = _eval_host_firewall([comp_policy], meta)
+    assert verdict.status == "WARN"
+    assert verdict.badge == "🟡"
+    assert "Checked by compliance policy" in verdict.observed_state
+
+
+def test_firewall_rule_evaluates_baseline_enforcers():
+    """Verify baseline or defender policies with enablefirewall trigger PASS."""
+    from intune_visual_doc.audit.rules import _eval_host_firewall
+
+    baseline = {
+        "name": "Windows Baseline - Preconfigured Policy",
+        "category": "configuration",
+        "assignments": [{"type": "Included", "target": "All Devices"}],
+        "settings": [
+            {"name": "enablefirewall", "full_definition": "enablefirewall", "value": "true"},
+            {"name": "defaultinboundaction", "full_definition": "defaultinboundaction", "value": "1"},
+        ]
+    }
+    meta = {"detected_categories": {"configuration"}}
+    verdict = _eval_host_firewall([baseline], meta)
+    assert verdict.status == "PASS"
+    assert verdict.badge == "🟢"
+    assert "Host firewall policy active" in verdict.observed_state
+
+
+def test_load_policies_recovers_from_markdown_when_raw_masked(tmp_path):
+    """Verify loading from backup recovers unmasked names from markdown when raw JSON is masked."""
+    run_dir = tmp_path / "run_masked"
+    raw_dir = run_dir / "raw_json" / "configuration"
+    raw_dir.mkdir(parents=True)
+    conf_dir = run_dir / "configuration"
+    conf_dir.mkdir(parents=True)
+
+    # Write masked raw JSON
+    raw_pol = {
+        "id": "pol-1",
+        "name": "Windows Baseline",
+        "assignments": [{"type": "Included", "target": "All Devices"}],
+        "settings": [
+            {"settingDefinitionId": "[MASKED: devi...wall]", "choiceSettingValue": {"value": "[MASKED: devi...ll_1]"}}
+        ]
+    }
+    with open(raw_dir / "windows-baseline.json", "w", encoding="utf-8") as f:
+        json.dump(raw_pol, f)
+
+    # Write markdown file with unmasked table
+    md_content = """# Windows Baseline
+
+## 3. Configured Settings
+
+| Setting Name | Configured Value | Status |
+| :--- | :--- | :--- |
+| `enablefirewall` | **true** | Configured |
+| `defaultinboundaction` | **1** | Configured |
+"""
+    with open(conf_dir / "windows-baseline.md", "w", encoding="utf-8") as f:
+        f.write(md_content)
+
+    policies, scope = load_policies_from_backup(str(run_dir))
+    assert len(policies) == 1
+    p_settings = policies[0]["settings"]
+    names = [s["name"] for s in p_settings]
+    assert "enablefirewall" in names
+    assert "defaultinboundaction" in names

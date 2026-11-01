@@ -138,7 +138,13 @@ def _eval_bitlocker(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> Eva
             enforcing_policies.append(p)
 
         # Check compliance verification
-        if cat == "compliance" and (settings.get("bitlockerenabled") in ("True", "1") or "bitlocker" in p_name.lower()):
+        is_comp_enc = (
+            settings.get("bitlockerenabled") in ("True", "true", "1")
+            or settings.get("storagerequireencryption") in ("True", "true", "1")
+            or "bitlocker" in p_name.lower()
+            or "encryption" in p_name.lower()
+        )
+        if cat == "compliance" and is_comp_enc:
             compliance_checks.append(p)
 
     assigned_enforcers = [p for p in enforcing_policies if _has_included_assignments(p)]
@@ -195,13 +201,23 @@ def _eval_defender_antivirus(policies: List[Dict[str, Any]], meta: Dict[str, Any
         settings = _get_setting_values(p)
 
         has_av_setting = (
-            any("defender" in k or "device_vendor_msft_defender" in k or "realtimemonitoring" in k for k in settings)
+            any("defender" in k or "device_vendor_msft_defender" in k or "realtimemonitoring" in k or "antivirus" in k for k in settings)
             or ("antivirus" in p_name.lower() and cat in ("configuration", "endpoint_security"))
+            or ("defender" in p_name.lower() and cat in ("configuration", "endpoint_security"))
         )
         if has_av_setting and cat in ("configuration", "endpoint_security"):
             enforcers.append(p)
 
-        if cat == "compliance" and (settings.get("antivirusenabled") in ("True", "1") or "antivirus" in p_name.lower()):
+        is_comp_av = (
+            settings.get("antivirusrequired") in ("True", "true", "1")
+            or settings.get("defenderenabled") in ("True", "true", "1")
+            or settings.get("rtpenabled") in ("True", "true", "1")
+            or settings.get("antispywarerequired") in ("True", "true", "1")
+            or settings.get("antivirusenabled") in ("True", "true", "1")
+            or "antivirus" in p_name.lower()
+            or "defender" in p_name.lower()
+        )
+        if cat == "compliance" and is_comp_av:
             compliance_checks.append(p)
 
     assigned = [p for p in enforcers if _has_included_assignments(p)]
@@ -298,13 +314,27 @@ def _eval_host_firewall(policies: List[Dict[str, Any]], meta: Dict[str, Any]) ->
         settings = _get_setting_values(p)
 
         has_fw = (
-            any("firewall" in k or "device_vendor_msft_firewall" in k for k in settings)
+            any(
+                "firewall" in k
+                or "device_vendor_msft_firewall" in k
+                or "defaultinboundaction" in k
+                or "defaultoutboundaction" in k
+                or "enablelogdroppedpackets" in k
+                or "enablefirewall" in k
+                for k in settings
+            )
             or ("firewall" in p_name.lower() and cat in ("configuration", "endpoint_security"))
         )
         if has_fw and cat in ("configuration", "endpoint_security"):
             enforcers.append(p)
 
-        if cat == "compliance" and (settings.get("firewallenabled") in ("True", "1") or "firewall" in p_name.lower()):
+        is_comp_fw = (
+            settings.get("activefirewallrequired") in ("True", "true", "1")
+            or settings.get("firewallenabled") in ("True", "true", "1")
+            or settings.get("firewallblockallincoming") in ("True", "true", "1")
+            or "firewall" in p_name.lower()
+        )
+        if cat == "compliance" and is_comp_fw:
             compliance_checks.append(p)
 
     assigned = [p for p in enforcers if _has_included_assignments(p)]

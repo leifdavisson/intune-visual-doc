@@ -82,6 +82,41 @@ def detect_backup_scope(target_dir: str) -> Dict[str, Any]:
     }
 
 
+def _load_settings_from_markdown(md_path: str) -> List[Dict[str, Any]]:
+    """
+    Parse configured settings table from generated policy markdown file.
+    Recovers unmasked parameter names if raw backup was sanitized.
+    """
+    if not os.path.exists(md_path):
+        return []
+    settings = []
+    try:
+        with open(md_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        in_table = False
+        for line in lines:
+            line_s = line.strip()
+            if "| Setting Name |" in line_s:
+                in_table = True
+                continue
+            if in_table:
+                if not line_s.startswith("|"):
+                    break
+                parts = [p.strip() for p in line_s.split("|")[1:-1]]
+                if len(parts) >= 2:
+                    name_raw = parts[0].strip("`").strip()
+                    val_raw = parts[1].replace("**", "").strip()
+                    if name_raw and not name_raw.startswith("---") and not name_raw.startswith(":"):
+                        settings.append({
+                            "name": name_raw,
+                            "full_definition": name_raw,
+                            "value": val_raw,
+                        })
+    except Exception:
+        pass
+    return settings
+
+
 def load_policies_from_backup(target_dir: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Load raw JSON policies from a backup directory without network calls.
@@ -120,7 +155,10 @@ def load_policies_from_backup(target_dir: str) -> Tuple[List[Dict[str, Any]], Di
             if isinstance(assignments_raw, list):
                 for a in assignments_raw:
                     target_info = a.get("target") or {}
-                    t_group = target_info.get("groupId") or a.get("groupId") or "Target Group"
+                    if isinstance(target_info, dict):
+                        t_group = target_info.get("groupId") or a.get("groupId") or "Target Group"
+                    else:
+                        t_group = str(target_info)
                     if is_effective_assignment(a):
                         assignments.append({"type": "Included", "target": t_group})
                     else:
@@ -139,6 +177,26 @@ def load_policies_from_backup(target_dir: str) -> Tuple[List[Dict[str, Any]], Di
                 for k, v in raw_data.items():
                     if isinstance(v, (str, int, float, bool)):
                         settings.append({"name": k, "full_definition": k, "value": str(v)})
+
+            # Recover unmasked settings from markdown document if backup was sanitized
+            masked_count = sum(
+                1 for s in settings
+                if "[MASKED:" in str(s.get("name", "")) or "[MASKED:" in str(s.get("full_definition", ""))
+            )
+            if not settings or (len(settings) > 0 and (masked_count / len(settings)) > 0.3):
+                slug = fname[:-5]
+                for check_dir in [
+                    os.path.join(scope["run_dir"], cat),
+                    os.path.join(scope["run_dir"], "configuration"),
+                    os.path.join(scope["run_dir"], "compliance"),
+                    os.path.join(scope["run_dir"], "endpoint_security"),
+                ]:
+                    md_candidate = os.path.join(check_dir, f"{slug}.md")
+                    if os.path.exists(md_candidate):
+                        md_settings = _load_settings_from_markdown(md_candidate)
+                        if md_settings:
+                            settings = md_settings
+                            break
 
             policies.append({
                 "id": raw_data.get("id", fname[:-5]),

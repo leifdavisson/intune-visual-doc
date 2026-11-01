@@ -1,40 +1,139 @@
 """
 Secret and sensitive information sanitizer.
 Masks credentials, pre-shared keys, and sensitive tokens unless explicitly bypassed.
+Licensed under GNU AGPLv3.
 """
 
 import re
 from typing import Any, Dict, List, Union
 
+# Keys that represent sensitive credentials
 SENSITIVE_KEY_PATTERNS = [
-    r"password",
     r"presharedkey",
-    r"secret",
     r"privatekey",
     r"apikey",
-    r"token",
-    r"passphrase",
-    r"credential",
     r"wifikey",
     r"radiussecret",
+    r"clientsecret",
+    r"sharedsecret",
+    r"appsecret",
+    r"accountpassword",
+    r"adminpassword",
+    r"userpassword",
+    r"rootpassword",
+    r"proxypassword",
+    r"^password$",
+    r"^secret$",
+    r"^token$",
+    r"^passphrase$",
+    r"^credential$",
 ]
 
 SECRET_REGEX = re.compile("|".join(SENSITIVE_KEY_PATTERNS), re.IGNORECASE)
+
+# Structural and schema keys that must never be treated as credentials
+STRUCTURAL_KEYS = {
+    "id",
+    "groupid",
+    "sourceid",
+    "settingdefinitionid",
+    "definitionid",
+    "settinginstancetemplateid",
+    "settingvaluetemplateid",
+    "templateid",
+    "displayname",
+    "name",
+    "description",
+    "category",
+    "category_label",
+    "platform",
+    "platforms",
+    "technologies",
+    "version",
+    "@odata.type",
+    "@odata.context",
+    "rolescopetagids",
+    "deviceandappmanagementassignmentfilterid",
+    "deviceandappmanagementassignmentfiltertype",
+    "source",
+    "type",
+}
+
+# Policy schema parameter suffixes that must never be masked as secrets
+POLICY_METADATA_SUFFIXES = (
+    "type",
+    "required",
+    "length",
+    "days",
+    "age",
+    "count",
+    "history",
+    "minutes",
+    "blocksimple",
+    "complexity",
+    "expiration",
+    "enabled",
+    "format",
+    "rule",
+    "definition",
+    "definitionid",
+    "id",
+    "state",
+    "scope",
+    "tag",
+    "ranges",
+    "quality",
+    "status",
+    "method",
+    "mode",
+)
+
+GUID_REGEX = re.compile(
+    r"^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?$"
+)
+
+
+def _is_secret_key(key: str) -> bool:
+    """Check if key represents a credential rather than schema metadata."""
+    k_lower = key.lower()
+    if k_lower in STRUCTURAL_KEYS or k_lower.endswith("id"):
+        return False
+    if any(k_lower.endswith(s) for s in POLICY_METADATA_SUFFIXES):
+        return False
+    return bool(SECRET_REGEX.search(key))
+
+
+def _is_structural_value(value: str) -> bool:
+    """Check if value is an identifier, setting definition, URL, or GUID."""
+    if GUID_REGEX.match(value):
+        return True
+    if value.startswith(("device_vendor_msft_", "user_vendor_msft_", "#microsoft.graph.", "http://", "https://")):
+        return True
+    return False
 
 
 def sanitize_value(key: str, value: Any, unsanitize: bool = False) -> Any:
     """
     Mask sensitive values if the setting key indicates a credential or secret.
     If unsanitize is True, returns original value unmodified.
+    Preserves schema identifiers, GUIDs, and Settings Catalog definition IDs.
     """
     if unsanitize or value is None:
         return value
 
     if isinstance(value, str):
-        if SECRET_REGEX.search(key):
+        if _is_secret_key(key):
             return "[MASKED: ********]"
-        # Mask long hex or base64 tokens that look like keys
-        if len(value) > 30 and re.match(r"^[A-Za-z0-9+/=_-]{30,}$", value):
+
+        k_lower = key.lower()
+        if (
+            len(value) > 30
+            and k_lower not in STRUCTURAL_KEYS
+            and not k_lower.endswith("id")
+            and not any(k_lower.endswith(s) for s in POLICY_METADATA_SUFFIXES)
+            and not _is_structural_value(value)
+            and re.match(r"^[A-Za-z0-9+/=_-]{30,}$", value)
+        ):
             return f"[MASKED: {value[:4]}...{value[-4:]}]"
 
     elif isinstance(value, dict):

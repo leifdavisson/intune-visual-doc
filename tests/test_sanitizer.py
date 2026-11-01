@@ -15,6 +15,12 @@ def test_unsanitize_flag_leaves_values():
 def test_non_secret_values_remain_intact():
     assert sanitize_value("RequireDeviceEncryption", "1") == "1"
     assert sanitize_value("osMinimumVersion", "10.0.22631") == "10.0.22631"
+    assert sanitize_value("passwordRequiredType", "devicePasswordRequirementType") == "devicePasswordRequirementType"
+    assert sanitize_value("id", "491f9725-3e5b-4459-a9e6-28b4fc384ba8") == "491f9725-3e5b-4459-a9e6-28b4fc384ba8"
+    assert sanitize_value(
+        "settingDefinitionId",
+        "device_vendor_msft_firewall_enablefirewall"
+    ) == "device_vendor_msft_firewall_enablefirewall"
 
 
 def test_sanitize_settings_list():
