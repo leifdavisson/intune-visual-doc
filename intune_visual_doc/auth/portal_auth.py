@@ -25,7 +25,7 @@ from ..prerequisites import (
     write_secure_file,
 )
 
-console = Console()
+console = Console(legacy_windows=False)
 AUTH_DIR = os.path.join(os.getcwd(), ".auth")
 PORTAL_AUTH_FILE = os.path.join(AUTH_DIR, "playwright_state.json")
 LIVE_TOKEN_FILE = os.path.join(AUTH_DIR, "live_token.json")

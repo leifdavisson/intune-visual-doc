@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-console = Console()
+console = Console(legacy_windows=False)
 
 TENANT_WRITE_WARNING = (
     "[bold yellow]⚠️  TENANT WRITE NOTICE:[/bold yellow]\n"

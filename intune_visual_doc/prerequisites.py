@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-console = Console()
+console = Console(legacy_windows=False)
 AUTH_DIR = os.path.join(os.getcwd(), ".auth")
 CONFIG_FILE = os.path.join(AUTH_DIR, "config.json")
 LIVE_TOKEN_FILE = os.path.join(AUTH_DIR, "live_token.json")

@@ -27,7 +27,7 @@ from .deliverables import (
     get_latest_deliverables_dir,
 )
 
-console = Console()
+console = Console(legacy_windows=False)
 
 
 def setup_graceful_interrupt():

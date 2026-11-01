@@ -22,7 +22,7 @@ from .prerequisites import (
 from .auth.portal_auth import authenticate_via_browser_hook
 from .setup_wizard import interactive_setup_wizard
 
-console = Console()
+console = Console(legacy_windows=False)
 
 # Highlighted menu line styling: BOLD and vibrant cyan for maximum visibility
 TUI_STYLE = get_style(
