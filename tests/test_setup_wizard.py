@@ -5,6 +5,7 @@ Licensed under GNU AGPLv3.
 
 import os
 import stat
+import platform
 import tempfile
 from unittest.mock import patch, MagicMock
 from intune_visual_doc.setup_wizard import (
@@ -62,10 +63,11 @@ def test_export_setup_scripts_creates_files():
         for fpath in exported:
             assert os.path.exists(fpath)
 
-        # Check bash script is executable
-        bash_path = os.path.join(tmpdir, "setup_spn.sh")
-        mode = os.stat(bash_path).st_mode
-        assert bool(mode & stat.S_IXUSR)
+        # Check bash script is executable on POSIX systems
+        if platform.system() != "Windows":
+            bash_path = os.path.join(tmpdir, "setup_spn.sh")
+            mode = os.stat(bash_path).st_mode
+            assert bool(mode & stat.S_IXUSR)
 
 
 @patch("msal.ConfidentialClientApplication")

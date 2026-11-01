@@ -80,9 +80,9 @@ def test_generator_sanitizes_raw_json_by_default(tmp_path):
     generator = DocGenerator(output_dir=str(output_dir), unsanitize=False)
     generator.render_all(policies=policies, audit_events=[])
 
-    raw_backup = json.loads((output_dir / "raw_json" / "configuration" / "wifi-profile.json").read_text())
+    raw_backup = json.loads((output_dir / "raw_json" / "configuration" / "wifi-profile.json").read_text(encoding="utf-8"))
     assert raw_backup["wifiPresharedKey"] == "[MASKED: ********]"
-    md_text = (output_dir / "configuration" / "wifi-profile.md").read_text()
+    md_text = (output_dir / "configuration" / "wifi-profile.md").read_text(encoding="utf-8")
     assert "PlainSecret99" not in md_text
 
 

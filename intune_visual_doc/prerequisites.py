@@ -186,7 +186,7 @@ def scan_installed_browsers() -> List[Dict[str, Any]]:
                 state_file = os.path.join(matched_data_dir, "Local State")
                 if os.path.exists(state_file):
                     try:
-                        with open(state_file, "r", errors="ignore") as f:
+                        with open(state_file, "r", encoding="utf-8", errors="ignore") as f:
                             state_data = json.load(f)
                         info_cache = state_data.get("profile", {}).get("info_cache", {})
                         for p_dir, p_info in info_cache.items():
