@@ -321,10 +321,18 @@ def authenticate_via_browser_hook(
                 # Non-blocking check for Enter key in terminal
                 user_signaled_done = False
                 try:
-                    if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-                        sys.stdin.readline()
-                        user_signaled_done = True
-                        console.print(f"\n[cyan]{time_str} ⌨️  User signaled sign-in completed. Scanning session storage...[/cyan]")
+                    if sys.platform == "win32":
+                        import msvcrt
+                        if msvcrt.kbhit():
+                            ch = msvcrt.getch()
+                            if ch in (b"\r", b"\n"):
+                                user_signaled_done = True
+                                console.print(f"\n[cyan]{time_str} ⌨️  User signaled sign-in completed. Scanning session storage...[/cyan]")
+                    else:
+                        if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                            sys.stdin.readline()
+                            user_signaled_done = True
+                            console.print(f"\n[cyan]{time_str} ⌨️  User signaled sign-in completed. Scanning session storage...[/cyan]")
                 except Exception:
                     pass
 

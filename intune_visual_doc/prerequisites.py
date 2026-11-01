@@ -225,8 +225,12 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
     cfg = load_config()
 
     # 1. System & Display
-    display = os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")
-    has_gui = display is not None and display != ""
+    if platform.system() == "Windows":
+        has_gui = True
+        display = "Windows Desktop"
+    else:
+        display = os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")
+        has_gui = display is not None and display != ""
 
     # 2. Browser & Profile
     has_browsers = len(browsers) > 0
