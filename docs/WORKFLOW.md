@@ -89,7 +89,8 @@ flowchart TD
    - Applies hygiene badges (`🟢 Assigned`, `🟡 Dormant`, `🛡️ Baseline`).
    - Renders modular Markdown sheets in ASD-STE100 language under timestamped `deliverables/` directories.
    - Updates the `deliverables/latest` pointer and historical deliverables catalog.
-6. **Step 6: Compliance, Backup & Safe Restore**:
+6. **Step 6: Posture Audit, Backup & Safe Restore**:
+   - Evaluates security posture against CIS benchmarks and Microsoft baselines (`intunedoc audit`).
    - Exports fast raw JSON backups (`intunedoc backup`) with `backup_manifest.json` in seconds.
    - Runs `intunedoc lint-ste` to guarantee standard compliance.
    - Tracks configuration drift with `intunedoc diff`.

@@ -419,6 +419,70 @@ def cmd_diff(args):
     console.print(table)
 
 
+def cmd_audit(args):
+    """Run security posture and best-practice audit against exported backup or mock data."""
+    from .audit.posture import (
+        load_policies_from_backup,
+        evaluate_tenant_posture,
+        display_posture_table,
+        render_audit_report,
+        detect_backup_scope,
+    )
+    from .mock_data import get_mock_policies
+    from .deliverables import get_latest_deliverables_dir
+
+    target_dir = getattr(args, "target_dir", None) or getattr(args, "output_dir", "deliverables")
+    profile = getattr(args, "profile", "balanced") or "balanced"
+    use_mock = getattr(args, "mock", False)
+    fmt = getattr(args, "format", "both") or "both"
+    custom_output = getattr(args, "output", None)
+
+    selected_domains = getattr(args, "domains", None)
+
+    if use_mock:
+        policies = get_mock_policies()
+        run_dir = os.path.abspath(target_dir) if target_dir != "deliverables" else os.path.abspath("deliverables/_mock_audit")
+        detected_categories = {p.get("category", "").lower() for p in policies}
+        scope = {
+            "run_dir": run_dir,
+            "detected_categories": detected_categories,
+            "is_valid": True,
+            "policy_count": len(policies),
+        }
+    else:
+        resolved = os.path.abspath(target_dir)
+        if not os.path.exists(os.path.join(resolved, "raw_json")) and not os.path.exists(os.path.join(resolved, "backup_manifest.json")):
+            latest = get_latest_deliverables_dir(resolved)
+            if latest:
+                resolved = latest
+
+        policies, scope = load_policies_from_backup(resolved)
+        run_dir = scope["run_dir"]
+        if not scope["is_valid"]:
+            console.print(f"[bold red]❌ No backup data or raw JSON policies found in:[/bold red] {resolved}")
+            console.print("[dim]Hint: Run 'intunedoc backup' first or pass '--mock' to test with sample data.[/dim]\n")
+            sys.exit(1)
+
+    evaluation = evaluate_tenant_posture(
+        policies=policies,
+        profile=profile,
+        detected_categories=scope["detected_categories"],
+        selected_domains=selected_domains,
+    )
+
+    if fmt in ("console", "both"):
+        display_posture_table(evaluation, profile_name=profile.replace("-", " ").title())
+
+    report_path = custom_output or os.path.join(run_dir, "AUDIT_RECOMMENDATIONS.md")
+    if fmt in ("markdown", "both"):
+        rendered_file = render_audit_report(
+            evaluation=evaluation,
+            output_path=report_path,
+            generator_user="Intune Security Auditor",
+        )
+        console.print(f"👉 [bold underline]Audit Recommendations Report:[/bold underline] file://{rendered_file}\n")
+
+
 def cmd_setup(args):
     """Guide or automate creation of read-only SPN and screenshot service account."""
     from .setup_wizard import (
@@ -502,6 +566,28 @@ def _dispatch_tui(skip_prereqs: bool = False):
                 output_dir = opts.get("output_dir", "deliverables")
                 no_timestamp = False
             cmd_backup(BackupArgs())
+            try:
+                from InquirerPy import inquirer
+                from .tui import interactive_audit_wizard
+                target_post_backup = "deliverables/latest" if os.path.exists("deliverables/latest") else opts.get("output_dir", "deliverables")
+                console.print("\n[bold cyan]💡 Next Step Recommended:[/bold cyan] Audit this backup against security baselines.")
+                run_audit_now = inquirer.confirm(
+                    message="Would you like to run the Best-Practice Posture Audit on this backup now?",
+                    default=True,
+                ).execute()
+                if run_audit_now:
+                    audit_opts = interactive_audit_wizard(target_post_backup)
+                    if audit_opts and audit_opts.get("action") == "audit":
+                        class PostBackupAuditArgs:
+                            target_dir = audit_opts.get("target_dir", target_post_backup)
+                            profile = audit_opts.get("profile", "balanced")
+                            mock = False
+                            format = "both"
+                            output = None
+                            domains = audit_opts.get("selected_domains")
+                        cmd_audit(PostBackupAuditArgs())
+            except Exception as e:
+                console.print(f"[yellow]Notice: Post-backup audit bypassed: {e}[/yellow]")
             console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act in ("login_done", "prereqs_done", "logout_done", "setup_done"):
             continue
@@ -509,6 +595,16 @@ def _dispatch_tui(skip_prereqs: bool = False):
             cmd_setup(None)
         elif act == "login":
             cmd_login(None)
+        elif act == "audit":
+            class AuditArgs:
+                target_dir = opts.get("target_dir", "deliverables")
+                profile = opts.get("profile", "balanced")
+                mock = opts.get("mock", False)
+                format = "both"
+                output = None
+                domains = opts.get("selected_domains")
+            cmd_audit(AuditArgs())
+            console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act == "lint":
             target_lint = "deliverables/latest" if os.path.exists("deliverables/latest") else "docs"
             class LintArgs:
@@ -589,6 +685,14 @@ def main():
     diff_parser.add_argument("--output-dir", type=str, default="deliverables", help="Deliverables directory containing run snapshots or raw_json/ backups (default: deliverables)")
     diff_parser.add_argument("--mock", action="store_true", help="Compare mock policies against saved backups")
 
+    # audit subcommand
+    audit_parser = subparsers.add_parser("audit", help="Audit tenant security posture and best-practice baseline alignment")
+    audit_parser.add_argument("target_dir", nargs="?", default="deliverables", help="Path to deliverables directory, timestamped run, or backup raw_json/ (default: deliverables)")
+    audit_parser.add_argument("--profile", choices=["balanced", "strict-stig"], default="balanced", help="Audit profile (default: balanced)")
+    audit_parser.add_argument("--mock", action="store_true", help="Audit mock school district sample data")
+    audit_parser.add_argument("--format", choices=["console", "markdown", "both"], default="both", help="Output format (default: both)")
+    audit_parser.add_argument("--output", type=str, default=None, help="Custom file path for AUDIT_RECOMMENDATIONS.md")
+
     args = parser.parse_args()
 
     if args.command == "tui":
@@ -609,6 +713,8 @@ def main():
         cmd_lint_ste(args)
     elif args.command == "diff":
         cmd_diff(args)
+    elif args.command == "audit":
+        cmd_audit(args)
     else:
         parser.print_help()
 

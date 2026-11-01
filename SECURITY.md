@@ -8,7 +8,8 @@ We provide security updates and patches for the following versions:
 
 | Version | Supported | Notes |
 | :--- | :--- | :--- |
-| `0.1.x` | Yes | Active development release |
+| `0.2.x` | Yes | Active development release |
+| `0.1.x` | Yes | Maintenance release |
 | `< 0.1.0` | No | Legacy prototypes |
 
 ---

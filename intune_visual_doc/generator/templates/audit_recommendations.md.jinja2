@@ -1,0 +1,94 @@
+# Microsoft Intune Security Posture & Best-Practice Audit
+
+> 🕒 **Audit Stamp**: Generated on **{{ generated_at }}** by **{{ generator_user }}**
+>
+> 🎯 **Audit Profile**: `{{ profile_name }}` | **Evaluated Controls**: {{ stats.evaluated }} | **Passed**: {{ stats.passed }} | **Warnings**: {{ stats.warn }} | **Missing**: {{ stats.fail }} | **Scope Omitted**: {{ stats.omitted }}
+>
+> 📍 **Portal Direct Link**: [Microsoft Intune Admin Center](https://intune.microsoft.com) | [Microsoft Security Baselines](https://learn.microsoft.com/en-us/mem/intune/protect/security-baselines)
+
+---
+
+> [!IMPORTANT]
+> ### {{ disclaimer.title }}
+{% for title, desc in disclaimer.points %}
+> **{{ title }}**: {{ desc }}
+{% endfor %}
+
+---
+
+## 1. Executive Stop-Light Scorecard
+
+**Overall Posture Status**: **{{ posture_badge }} {{ posture_tier }}**  
+**Benchmark Alignment**: **{{ stats.passed }} / {{ stats.evaluated }} Evaluated Controls ({{ stats.percentage }}%)**
+
+| Domain | Control | Status | Framework Reference | Operational Summary |
+| :--- | :--- | :---: | :--- | :--- |
+{% for r in results -%}
+| **{{ r.domain_label }}** | {{ r.title }} | `{{ r.badge }} {{ r.status }}` | {{ r.benchmark_ref }} | {{ r.observed_state }} |
+{% endfor %}
+
+---
+
+## 2. Priority Remediation Punch List
+
+{% if top_actions %}
+> [!TIP]
+> ### Top Priority Actions
+{% for a in top_actions %}
+> - **{{ a.badge }} [{{ a.rule_id }}] {{ a.title }}**: {{ a.observed_state }}
+{% endfor %}
+{% endif %}
+
+{% for r in sorted_results %}
+### {{ r.badge }} [{{ r.rule_id }}] {{ r.title }}
+
+- **Status**: `{{ r.badge }} {{ r.status }}`
+- **Framework Reference**: [{{ r.benchmark_ref }}]({{ r.learn_url }})
+- **Observed State in Tenant**: {{ r.observed_state }}
+{% if r.evidence %}
+- **Observed Evidence**: {{ r.evidence }}
+{% endif %}
+
+#### Benchmark Intent
+{{ r.benchmark_intent }}
+
+#### Field Realities & Trade-Offs (For vs. Against)
+{{ r.field_context }}
+
+#### Pragmatic Pilot Rollout Steps
+{{ r.remediation_guidance }}
+
+- 📖 **Official Microsoft Guidance**: [Read Intune Documentation]({{ r.learn_url }})
+
+{% if r.findings %}
+**Target Items Identified**:
+{% for f in r.findings %}
+- `{{ f }}`
+{% endfor %}
+{% endif %}
+
+---
+
+{% endfor %}
+
+## 3. Assumptions & Scope Limitations
+
+1. **Offline Analysis Boundary**: This audit evaluates exported Microsoft Graph API configurations stored in `raw_json/`.
+2. **Tenant-Wide Portals Out of Scope**: Settings configured in the Microsoft Defender XDR portal, Microsoft Entra Conditional Access, or external cloud firewalls are not evaluated.
+3. **Hardware & Firmware Variations**: Actual BitLocker or TPM 2.0 enablement depends on hardware capabilities and BIOS settings of physical endpoints.
+
+---
+
+## 4. Leadership & CISO Review Questionnaire
+
+Discuss these questions before applying policy modifications to production devices:
+
+- [ ] **Pilot Group Definition**: Do we have an isolated IT pilot group for testing policy updates before broad rollout?
+- [ ] **LAPS Key Recovery**: If deploying Windows LAPS, do helpdesk staff have Entra ID permissions to read local admin passwords during network outages?
+- [ ] **Instructional Software Compatibility**: Do our firewall and antivirus settings permit classroom software, secure testing browsers, and local printers?
+- [ ] **Update Ring Schedules**: Are active hours configured to prevent device restarts during instructional or core business hours?
+- [ ] **Dormant Configuration Cleanup**: Can we retire or delete unassigned test profiles identified in the audit?
+
+---
+
+[Return to Tenant Documentation Index](README.md)

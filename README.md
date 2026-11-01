@@ -59,12 +59,13 @@ flowchart TD
         E5A --> E5B --> E5C
     end
 
-    subgraph E6["Step 6: Compliance, Backup & Safe Restore"]
-        E6A["6.1 Run ASD-STE100 Readability Linter"]
-        E6B["6.2 Audit Configuration Drift Against JSON Backups"]
-        E6C["6.3 Export Fast Config Backup (intunedoc backup)"]
-        E6D["6.4 Safe Restore Utility (scripts/intune_restore.py)"]
-        E6A --> E6B --> E6C --> E6D
+    subgraph E6["Step 6: Posture Audit, Backup & Safe Restore"]
+        E6A["6.1 Run Security Posture Audit (intunedoc audit)"]
+        E6B["6.2 Export Fast Raw JSON Backup (intunedoc backup)"]
+        E6C["6.3 Audit Configuration Drift (intunedoc diff)"]
+        E6D["6.4 Verify ASD-STE100 Compliance (intunedoc lint-ste)"]
+        E6E["6.5 Safe Restore Boundary (scripts/intune_restore.py)"]
+        E6A --> E6B --> E6C --> E6D --> E6E
     end
 
     E1C --> E2A
@@ -208,17 +209,29 @@ intunedoc backup --unsanitize
 intunedoc backup --category compliance,configuration
 ```
 
-#### Step 6: Verify ASD-STE100 Language Compliance
+#### Step 6: Run Security Posture & Best-Practice Audit
+```bash
+# Audit tenant security posture against CIS and Microsoft baselines
+intunedoc audit
+
+# Audit offline mock data
+intunedoc audit --mock
+
+# Audit using strict STIG profile
+intunedoc audit --profile strict-stig
+```
+
+#### Step 7: Verify ASD-STE100 Language Compliance
 ```bash
 intunedoc lint-ste --directory docs
 ```
 
-#### Step 7: Audit Configuration Drift
+#### Step 8: Compare Configuration Drift
 ```bash
 intunedoc diff
 ```
 
-#### Step 8: Safe Configuration Restore (Standalone)
+#### Step 9: Safe Configuration Restore (Standalone)
 ```bash
 # Simulate restore plan without modifying tenant
 python scripts/intune_restore.py --dry-run deliverables/latest/raw_json/compliance/policy.json
@@ -227,7 +240,7 @@ python scripts/intune_restore.py --dry-run deliverables/latest/raw_json/complian
 python scripts/intune_restore.py deliverables/latest/raw_json/compliance/policy.json
 ```
 
-#### Step 9: Logout & Purge Credentials
+#### Step 10: Logout & Purge Credentials
 ```bash
 intunedoc logout
 ```
@@ -252,6 +265,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0011: Read-Only Service Principal and Service Account Setup](docs/adr/0011-read-only-spn-and-service-account-setup.md) (file:///home/leifdavisson/intune_docs/docs/adr/0011-read-only-spn-and-service-account-setup.md)
 - [ADR 0012: Deliverables Folder and Timestamped Runs](docs/adr/0012-deliverables-folder-and-timestamped-runs.md) (file:///home/leifdavisson/intune_docs/docs/adr/0012-deliverables-folder-and-timestamped-runs.md)
 - [ADR 0013: Configuration Backups and Safe Restore Utility](docs/adr/0013-configuration-backups-and-safe-restore-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
+- [ADR 0014: Security Posture and Best-Practice Audit Utility](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0014-security-posture-and-best-practice-audit-utility.md)
 
 ---
 

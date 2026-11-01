@@ -27,9 +27,11 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
   Run `display_prerequisites_table()` on TUI startup unless `--skip-prereqs` is set.
   `intunedoc setup` is the ONLY operation that creates or modifies objects in the Microsoft Entra tenant.
   All other core workflows are strictly 100% read-only.
-  Preserve the 9-step chronological TUI sequence (`1. Prerequisites` -> `2. Setup Read-Only Identities` ->
-  `3. Authenticate` -> `4. Run Generator` -> `5. Export Backup` -> `6. Lint STE` -> `7. Drift Diff` -> `8. Logout` -> `9. Exit`).
-  Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`, `intunedoc backup --mock`).
+  Preserve the 10-step chronological TUI sequence (`1. Prerequisites` -> `2. Setup Read-Only Identities` ->
+  `3. Authenticate` -> `4. Run Generator` -> `5. Export Backup` -> `6. Posture Audit` -> `7. Lint STE` ->
+  `8. Drift Diff` -> `9. Logout` -> `10. Exit`).
+  Keep `--mock` as an explicit CLI-only test flag (`intunedoc run --mock`, `intunedoc diff --mock`,
+  `intunedoc backup --mock`, `intunedoc audit --mock`).
 - **Standalone Restore Boundary (`scripts/intune_restore.py`, ADR 0013)**:
   Keep tenant restoration operations completely outside the TUI in `scripts/intune_restore.py`.
   Enforce multi-layered safety gates: strip assignments by default to create dormant unassigned policies,
@@ -60,7 +62,10 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 Load only the ADR or skill matching your active task branch:
 
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
-  full decision table (`ADR 0001`–`ADR 0013`) when adding or amending architectural decisions.
+  full decision table (`ADR 0001`–`ADR 0014`) when adding or amending architectural decisions.
+- **Security Posture & Best-Practice Audit**:
+  [`docs/adr/0014-security-posture-and-best-practice-audit-utility.md`](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) —
+  when updating CIS benchmarks, Microsoft baselines, NIST 800-63B checks, offline evaluation, or legal notices.
 - **Service Principals & Screenshot Service Account**:
   [`docs/adr/0011-read-only-spn-and-service-account-setup.md`](docs/adr/0011-read-only-spn-and-service-account-setup.md)
   and [`docs/PARANOID_ADMIN_SETUP.md`](docs/PARANOID_ADMIN_SETUP.md) —

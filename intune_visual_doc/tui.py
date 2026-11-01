@@ -6,6 +6,7 @@ Features intelligent workflow gates and live CLI command previews.
 
 import sys
 from InquirerPy import inquirer
+from InquirerPy.separator import Separator
 from InquirerPy.utils import get_style
 from rich.console import Console
 from rich.panel import Panel
@@ -121,6 +122,92 @@ def build_cli_command(categories, screenshots, mock, unsanitize, audit_days, out
     return " ".join(parts)
 
 
+def interactive_audit_wizard(target_dir: str = "deliverables") -> dict:
+    """
+    Unified interactive posture audit wizard.
+    Enforces safe harbor legal acknowledgment, backup workload detection,
+    and profile/domain selection.
+    """
+    from .audit.posture import detect_backup_scope
+    from .audit.rules import get_legal_disclaimer_text
+
+    scope = detect_backup_scope(target_dir)
+    if not scope["is_valid"]:
+        console.print(f"\n[bold yellow]⚠️  Missing Backup Dependency:[/bold yellow] No configuration backup found in {target_dir}.")
+        do_backup = inquirer.confirm(
+            message="Would you like to run Step 5 (Export Backup) now before auditing?",
+            default=True,
+            style=TUI_STYLE,
+        ).execute()
+        if do_backup:
+            return {"action": "backup", "categories": ["all"], "mock": False, "unsanitize": True, "output_dir": "deliverables"}
+        return {"action": "cancel"}
+
+    # Legal safe harbor notice gate
+    console.print(
+        Panel(
+            get_legal_disclaimer_text(),
+            title="🛡️ Safe Harbor Acknowledgment",
+            border_style="yellow",
+        )
+    )
+    ack = inquirer.confirm(message="Acknowledge legal advisory notice and proceed?", default=True, style=TUI_STYLE).execute()
+    if not ack:
+        return {"action": "cancel"}
+
+    detected = sorted(list(scope["detected_categories"]))
+    console.print(f"\n[cyan]Detected backup workloads:[/cyan] {', '.join(detected) if detected else 'All'}")
+
+    domain_choices = [
+        {"name": "Endpoint Encryption (BitLocker / FileVault)", "value": "endpoint_encryption", "enabled": True},
+        {"name": "Antivirus & EDR (Microsoft Defender)", "value": "antivirus_edr", "enabled": True},
+        {"name": "Host Firewall (Domain, Private, Public)", "value": "host_firewall", "enabled": True},
+        {"name": "Windows Update Cadence (WUfB Rings)", "value": "update_cadence", "enabled": "configuration" in scope["detected_categories"] or not scope["detected_categories"]},
+        {"name": "Identity & Credential Hygiene (LAPS, Screen Lock)", "value": "identity_credentials", "enabled": True},
+        {"name": "Policy Hygiene & Lifecycle (Dormant Policies)", "value": "policy_hygiene", "enabled": True},
+    ]
+
+    selected_domains = inquirer.checkbox(
+        message="Select audit baseline domains to evaluate (pre-checked by detected scope):",
+        choices=domain_choices,
+        style=TUI_STYLE,
+    ).execute()
+
+    if not selected_domains:
+        console.print("[yellow]No domains selected for evaluation. Audit cancelled.[/yellow]\n")
+        return {"action": "cancel"}
+
+    profile = inquirer.select(
+        message="Select security audit baseline profile:",
+        choices=[
+            {"name": "🛡️  Balanced Baseline (CIS Intune Level 1 + MS Baseline + NIST 800-63B) [Recommended]", "value": "balanced"},
+            {"name": "🔒 Strict STIG Profile (DoD DISA STIG + ASR Block Enforcement)", "value": "strict-stig"},
+        ],
+        default="balanced",
+        style=TUI_STYLE,
+    ).execute()
+
+    cmd_preview = f"intunedoc audit {scope['run_dir']} --profile {profile}"
+    console.print(
+        Panel(
+            f"[bold yellow]👉 Equivalent CLI Command:[/bold yellow]\n\n"
+            f"[bold green]{cmd_preview}[/bold green]\n\n"
+            f"[dim]Tip: Fast offline analysis against raw JSON backups.[/dim]",
+            title="Command Preview",
+            border_style="yellow",
+        )
+    )
+
+    proceed = inquirer.confirm(message="Ready to execute posture audit?", default=True, style=TUI_STYLE).execute()
+    return {
+        "action": "audit" if proceed else "cancel",
+        "target_dir": scope["run_dir"],
+        "profile": profile,
+        "selected_domains": selected_domains,
+        "mock": False,
+    }
+
+
 def run_tui_menu(skip_prereqs: bool = False) -> dict:
     """
     Launch interactive prompt session.
@@ -141,28 +228,36 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
     else:
         audit = evaluate_dependencies_and_supersedences()
 
+    user_hint = audit.get("selected_account") or ""
     if audit.get("can_skip_login"):
-        user_hint = audit.get("selected_account") or "Active Session"
         console.print(
-            f"[bold green]✨ Fast Track:[/bold green] Active session ready ({user_hint})! "
+            f"[bold green]✨ Fast Track:[/bold green] Active session ready ({user_hint or 'Active Session'})! "
             "[dim]You can skip Step 2 & 3 and run Step 4 directly.[/dim]\n"
         )
 
-    # 2. Main workflow menu in exact chronological order
+    # 2. Main workflow menu with aligned single-digit numbers and clear section headers
+    default_step = "run" if audit.get("can_skip_login") else "prereqs"
+    choices = [
+        Separator("── Setup ──────────────────────────────────────────"),
+        {"name": " 1  Check prerequisites and browser profile", "value": "prereqs"},
+        {"name": " 2  Set up read-only identities (CI/CD, optional)", "value": "setup"},
+        {"name": f" 3  Sign in to Microsoft Graph{f' ({user_hint})' if user_hint else ''}", "value": "login"},
+        Separator("── Collect ────────────────────────────────────────"),
+        {"name": " 4  Generate documentation with screenshots", "value": "run"},
+        {"name": " 5  Export backup (raw JSON, fast)", "value": "backup"},
+        Separator("── Analyze ────────────────────────────────────────"),
+        {"name": " 6  Run security posture audit (CIS & MS Baselines)", "value": "audit"},
+        {"name": " 7  Verify ASD-STE100 compliance (Linter)", "value": "lint"},
+        {"name": " 8  Compare configuration drift (Diff)", "value": "diff"},
+        Separator("── Session ────────────────────────────────────────"),
+        {"name": " 9  Sign out and purge credentials", "value": "logout"},
+        {"name": " 0  Exit", "value": "exit"},
+    ]
+
     action = inquirer.select(
         message="Select workflow step to execute:",
-        choices=[
-            {"name": "🛠️  1. Check Prerequisites & Select Browser / Profile", "value": "prereqs"},
-            {"name": "⚙️  2. Setup Read-Only SPN & Screenshot Maker (Optional: Server / CI/CD)", "value": "setup"},
-            {"name": "🔑 3. Authenticate & Hook Session (Interactive Browser Login)", "value": "login"},
-            {"name": "🚀 4. Run Documentation Generator (Extract & Screenshot)", "value": "run"},
-            {"name": "📦 5. Export Backup (Raw Configs Only — Fast, No Screenshots)", "value": "backup"},
-            {"name": "📝 6. Verify ASD-STE100 Compliance (Linter)", "value": "lint"},
-            {"name": "🔍 7. Audit Configuration Drift (Diff)", "value": "diff"},
-            {"name": "🗑️  8. Logout (Purge Stored Credentials)", "value": "logout"},
-            {"name": "❌ 9. Exit", "value": "exit"},
-        ],
-        default="prereqs",
+        choices=choices,
+        default=default_step,
         style=TUI_STYLE,
     ).execute()
 
@@ -274,6 +369,9 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
             "unsanitize": unsanitize,
             "output_dir": "deliverables",
         }
+
+    if action == "audit":
+        return interactive_audit_wizard("deliverables")
 
     if action != "run":
         return {"action": action}

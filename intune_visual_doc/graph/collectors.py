@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from .client import GraphClient
 from .resolver import TargetResolver
+from .flattener import flatten_settings_catalog, flatten_compliance_settings
 
 
 class PolicyCollector:
@@ -310,73 +311,11 @@ class PolicyCollector:
 
     def _flatten_settings_catalog(self, settings_raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Recursively flatten nested Settings Catalog definition instances and child collections into rows."""
-        items: List[Dict[str, Any]] = []
-
-        def _extract_instance(instance: Dict[str, Any]) -> None:
-            if not instance or not isinstance(instance, dict):
-                return
-            def_id = instance.get("settingDefinitionId", "Setting")
-            choice_obj = instance.get("choiceSettingValue") or {}
-            simple_obj = instance.get("simpleSettingValue") or {}
-            bool_obj = instance.get("booleanSettingValue") or {}
-
-            val = (
-                choice_obj.get("value")
-                if choice_obj.get("value") is not None
-                else (
-                    simple_obj.get("value")
-                    if simple_obj.get("value") is not None
-                    else bool_obj.get("value")
-                )
-            )
-
-            if val is None:
-                simple_coll = instance.get("simpleSettingCollectionValue") or []
-                if simple_coll:
-                    val = ", ".join(str(x.get("value")) for x in simple_coll if x.get("value") is not None)
-
-            if val is None:
-                choice_coll = instance.get("choiceSettingCollectionValue") or []
-                if choice_coll:
-                    val = ", ".join(str(x.get("value")) for x in choice_coll if x.get("value") is not None)
-
-            val_str = str(val) if val is not None else "Configured"
-            prefix = f"{def_id}_"
-            if val_str.startswith(prefix) and len(val_str) > len(prefix):
-                val_str = val_str[len(prefix):]
-
-            name = def_id.split("_")[-1] if "_" in def_id else def_id
-            items.append({
-                "name": name,
-                "full_definition": def_id,
-                "value": val_str,
-            })
-
-            for child in choice_obj.get("children") or []:
-                _extract_instance(child)
-
-            for grp in instance.get("groupSettingCollectionValue") or []:
-                for child in grp.get("children") or []:
-                    _extract_instance(child)
-
-        for s in settings_raw:
-            inst = s.get("settingInstance") if "settingInstance" in s else s
-            _extract_instance(inst)
-
-        return items
+        return flatten_settings_catalog(settings_raw)
 
     def _flatten_compliance_settings(self, policy: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract configured compliance requirements."""
-        items = []
-        ignore_keys = {"id", "displayName", "description", "createdDateTime", "lastModifiedDateTime",
-                       "version", "assignments", "@odata.type", "@odata.context"}
-        for k, v in policy.items():
-            if k not in ignore_keys and v is not None:
-                items.append({
-                    "name": k,
-                    "value": str(v),
-                })
-        return items
+        return flatten_compliance_settings(policy)
 
     def _flatten_template_settings(self, policy: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract configured device configuration template values."""

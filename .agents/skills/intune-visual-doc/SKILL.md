@@ -59,6 +59,7 @@ Read [`AGENTS.md`](../../../AGENTS.md) first for core guardrails, then jump to t
    .venv/bin/pytest
    .venv/bin/intunedoc run --mock
    .venv/bin/intunedoc backup --mock
+   .venv/bin/intunedoc audit --mock
    .venv/bin/intunedoc diff --mock
    .venv/bin/intunedoc lint-ste --directory docs
    awk 'length > 281 {print FILENAME ":" FNR ":" length; found=1} END {exit found}' \

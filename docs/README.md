@@ -20,6 +20,8 @@ All documentation and code in this repository follow the [ASD-STE100](https://as
    View generated tenant documentation snapshots, visual screenshots, and audit drift logs.
 5. **[Disaster Recovery & Safe Restore](../scripts/intune_restore.py)**:
    Review safety controls in `scripts/intune_restore.py` for restoring JSON backups into Intune safely.
+6. **[Codebase Improvement Backlog](PROJECT_IMPROVEMENT_BACKLOG.md)**:
+   Review planned software improvements, collector expansion tasks, and deliverable quality fixes.
 
 ---
 
