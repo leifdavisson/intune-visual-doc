@@ -62,7 +62,10 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 Load only the ADR or skill matching your active task branch:
 
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
-  full decision table (`ADR 0001`–`ADR 0014`) when adding or amending architectural decisions.
+  full decision table (`ADR 0001`–`ADR 0015`) when adding or amending architectural decisions.
+- **Executive Reports & Visual Drift Engine**:
+  [`docs/adr/0015-executive-reporting-and-visual-drift-engine.md`](docs/adr/0015-executive-reporting-and-visual-drift-engine.md) —
+  when updating vector PDF generation, standalone HTML bundles, or granular drift diffing.
 - **Security Posture & Best-Practice Audit**:
   [`docs/adr/0014-security-posture-and-best-practice-audit-utility.md`](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) —
   when updating CIS benchmarks, Microsoft baselines, NIST 800-63B checks, offline evaluation, or legal notices.

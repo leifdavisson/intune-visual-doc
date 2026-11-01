@@ -91,9 +91,10 @@ flowchart TD
    - Updates the `deliverables/latest` pointer and historical deliverables catalog.
 6. **Step 6: Posture Audit, Backup & Safe Restore**:
    - Evaluates security posture against CIS benchmarks and Microsoft baselines (`intunedoc audit`).
+   - Generates executive presentation HTML and vector PDF packets (`EXECUTIVE_AUDIT.pdf`) for leadership.
    - Exports fast raw JSON backups (`intunedoc backup`) with `backup_manifest.json` in seconds.
    - Runs `intunedoc lint-ste` to guarantee standard compliance.
-   - Tracks configuration drift with `intunedoc diff`.
+   - Tracks configuration drift with `intunedoc diff` and visual reports (`DRIFT_REPORT.html`).
    - Restores policies safely with `scripts/intune_restore.py` (assignments stripped, collision checks, dry-run mode).
    - Offers `intunedoc logout` to wipe all local credentials.
 

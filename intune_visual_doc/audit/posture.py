@@ -173,6 +173,9 @@ def load_policies_from_backup(target_dir: str) -> Tuple[List[Dict[str, Any]], Di
                 settings = flatten_settings_catalog(raw_data["settings"])
             elif isinstance(raw_data.get("settings"), list):
                 settings = raw_data["settings"]
+            elif isinstance(raw_data.get("settings"), dict):
+                for k, v in raw_data["settings"].items():
+                    settings.append({"name": str(k), "full_definition": str(k), "value": str(v)})
             else:
                 for k, v in raw_data.items():
                     if isinstance(v, (str, int, float, bool)):
@@ -200,6 +203,7 @@ def load_policies_from_backup(target_dir: str) -> Tuple[List[Dict[str, Any]], Di
 
             policies.append({
                 "id": raw_data.get("id", fname[:-5]),
+                "slug": fname[:-5],
                 "name": name,
                 "description": desc,
                 "category": cat,
@@ -223,6 +227,11 @@ def evaluate_tenant_posture(
     Evaluate policy set against posture audit rules.
     Combines rule metadata with evaluation verdicts.
     """
+    if isinstance(profile, dict):
+        if detected_categories is None:
+            detected_categories = profile.get("detected_categories")
+        profile = "balanced"
+
     if detected_categories is None:
         detected_categories = {p.get("category", "").lower() for p in policies if p.get("category")}
 
@@ -392,3 +401,98 @@ def render_audit_report(
         f.write(rendered)
 
     return output_path
+
+
+def render_executive_html_report(
+    evaluation: Dict[str, Any],
+    output_path: str,
+    generator_user: str = "Intune Security Auditor",
+    tenant_label: str = "Microsoft 365 Tenant",
+    profile: Optional[str] = None,
+) -> str:
+    """
+    Render standalone EXECUTIVE_AUDIT.html presentation bundle.
+    Embeds full stop-light scorecard, KPI metrics, and framework citations.
+    """
+    if profile:
+        evaluation["profile"] = profile
+    tmpl_dir = os.path.join(os.path.dirname(__file__), "..", "generator", "templates")
+    env = Environment(loader=FileSystemLoader(tmpl_dir), autoescape=True, trim_blocks=True, lstrip_blocks=True)
+    tmpl = env.get_template("executive_audit.html.jinja2")
+
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+    severity_order = {"FAIL": 0, "WARN": 1, "PASS": 2, "OMITTED": 3}
+    sorted_results = sorted(evaluation["results"], key=lambda r: severity_order.get(r.status, 99))
+
+    priority_actions = []
+    for r in sorted_results:
+        if r.status in ("FAIL", "WARN"):
+            priority_actions.append({
+                "title": r.title,
+                "action": r.remediation_guidance,
+            })
+    priority_actions = priority_actions[:3]
+
+    grouped_results: Dict[str, Dict[str, Any]] = {}
+    for r in evaluation["results"]:
+        if r.domain not in grouped_results:
+            grouped_results[r.domain] = {
+                "label": r.domain_label,
+                "results": [],
+            }
+        grouped_results[r.domain]["results"].append(r)
+
+    rendered = tmpl.render(
+        generated_at=now_str,
+        generator_user=generator_user,
+        tenant_label=tenant_label,
+        profile_name=evaluation["profile"].replace("-", " ").title(),
+        posture_badge=evaluation["posture_badge"],
+        posture_tier=evaluation["posture_tier"],
+        stats=evaluation["stats"],
+        results=evaluation["results"],
+        sorted_results=sorted_results,
+        priority_actions=priority_actions,
+        grouped_results=grouped_results,
+        disclaimer=LEGAL_SAFE_HARBOR_NOTICE,
+    )
+
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(rendered)
+
+    return os.path.abspath(output_path)
+
+
+def render_executive_pdf_report(
+    evaluation: Dict[str, Any],
+    output_path: str,
+    generator_user: str = "Intune Security Auditor",
+    tenant_label: str = "Microsoft 365 Tenant",
+    profile: Optional[str] = None,
+) -> str:
+    """
+    Render executive audit assessment to vector PDF using Playwright Chromium runtime.
+    """
+    from ..visual.pdf import render_html_to_pdf
+
+    html_path = output_path.replace(".pdf", ".html")
+    if html_path == output_path:
+        html_path = output_path + ".html"
+
+    render_executive_html_report(
+        evaluation=evaluation,
+        output_path=html_path,
+        generator_user=generator_user,
+        tenant_label=tenant_label,
+        profile=profile,
+    )
+
+    return render_html_to_pdf(
+        html_path=html_path,
+        output_pdf_path=output_path,
+        header_title=f"{tenant_label} Security Posture Assessment",
+    )

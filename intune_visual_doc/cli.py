@@ -374,10 +374,39 @@ def cmd_lint_ste(args):
 
 
 def cmd_diff(args):
-    """Compare live or mock Intune policies against saved raw_json/ backups."""
-    base_dir = getattr(args, "output_dir", "deliverables")
-    target_dir = get_latest_deliverables_dir(base_dir) or os.path.abspath(base_dir)
+    """Compare live policies against saved backups or compare two historical runs offline."""
+    from .audit.drift import (
+        compare_policies_granular,
+        compare_backup_runs,
+        display_granular_drift_table,
+        render_drift_html_report,
+    )
+
+    from_run = getattr(args, "from_run", None)
+    to_run = getattr(args, "to_run", None)
+    export_html = getattr(args, "html", False)
     use_mock = getattr(args, "mock", False)
+    base_dir = getattr(args, "output_dir", "deliverables")
+
+    if from_run:
+        # Offline run-to-run comparison
+        baseline_dir = os.path.abspath(from_run)
+        if to_run:
+            target_dir = os.path.abspath(to_run)
+        else:
+            target_dir = get_latest_deliverables_dir(base_dir) or os.path.abspath(base_dir)
+
+        report = compare_backup_runs(baseline_dir, target_dir)
+        display_granular_drift_table(report)
+
+        if export_html:
+            html_path = os.path.join(target_dir, "DRIFT_REPORT.html")
+            out_file = render_drift_html_report(report, html_path)
+            console.print(f"👉 [bold underline]Visual Drift HTML Report:[/bold underline] file://{out_file}\n")
+        return
+
+    # Comparing live or mock policies against latest backup
+    target_dir = get_latest_deliverables_dir(base_dir) or os.path.abspath(base_dir)
     console.print(Panel(
         f"[bold cyan]🔍 Auditing Configuration Drift[/bold cyan]\n"
         f"Backup Directory: {target_dir}/raw_json"
@@ -404,19 +433,38 @@ def cmd_diff(args):
             console.print("[dim]Hint: Run 'intunedoc login' first or pass '--mock' for offline verification.[/dim]")
             sys.exit(1)
 
-    findings = compare_with_backups(policies, output_dir=target_dir)
-    if not findings:
-        console.print("[bold green]✅ No configuration drift detected since last backup.[/bold green]\n")
-        return
+    from .audit.posture import load_policies_from_backup
+    saved_policies, scope = load_policies_from_backup(target_dir)
 
-    table = Table(title="Configuration Drift Report", border_style="yellow")
-    table.add_column("Policy", style="cyan")
-    table.add_column("Category", style="magenta")
-    table.add_column("Drift Status", style="bold yellow")
-    table.add_column("Details", style="white")
-    for item in findings:
-        table.add_row(item["policy"], item["category"], item["status"], item["details"])
-    console.print(table)
+    diffs = compare_policies_granular(saved_policies, policies, baseline_dir=target_dir)
+    added = sum(1 for d in diffs if d.status == "Added")
+    removed = sum(1 for d in diffs if d.status == "Removed")
+    modified = sum(1 for d in diffs if d.status == "Modified")
+    unchanged = sum(1 for d in diffs if d.status == "Unchanged")
+    total_setting_changes = sum(len(d.setting_diffs) for d in diffs if d.status == "Modified")
+
+    report = {
+        "baseline_dir": target_dir,
+        "target_dir": "Live Tenant",
+        "baseline_label": os.path.basename(target_dir),
+        "target_label": "Live Microsoft Intune Tenant" if not use_mock else "Mock Intune Tenant",
+        "diffs": diffs,
+        "stats": {
+            "total_policies_target": len(policies),
+            "added": added,
+            "removed": removed,
+            "modified": modified,
+            "unchanged": unchanged,
+            "total_setting_changes": total_setting_changes,
+        },
+    }
+
+    display_granular_drift_table(report)
+
+    if export_html:
+        html_path = os.path.join(target_dir, "DRIFT_REPORT.html")
+        out_file = render_drift_html_report(report, html_path)
+        console.print(f"👉 [bold underline]Visual Drift HTML Report:[/bold underline] file://{out_file}\n")
 
 
 def cmd_audit(args):
@@ -426,6 +474,8 @@ def cmd_audit(args):
         evaluate_tenant_posture,
         display_posture_table,
         render_audit_report,
+        render_executive_html_report,
+        render_executive_pdf_report,
         detect_backup_scope,
     )
     from .mock_data import get_mock_policies
@@ -480,7 +530,30 @@ def cmd_audit(args):
             output_path=report_path,
             generator_user="Intune Security Auditor",
         )
-        console.print(f"👉 [bold underline]Audit Recommendations Report:[/bold underline] file://{rendered_file}\n")
+        console.print(f"👉 [bold underline]Markdown Recommendations:[/bold underline] file://{rendered_file}")
+
+    if fmt in ("html", "both"):
+        html_path = os.path.join(run_dir, "EXECUTIVE_AUDIT.html")
+        render_executive_html_report(
+            evaluation=evaluation,
+            output_path=html_path,
+            generator_user="Intune Security Auditor",
+        )
+        console.print(f"👉 [bold underline]Executive HTML Packet:[/bold underline] file://{html_path}")
+
+    if fmt in ("pdf", "both"):
+        try:
+            pdf_path = os.path.join(run_dir, "EXECUTIVE_AUDIT.pdf")
+            render_executive_pdf_report(
+                evaluation=evaluation,
+                output_path=pdf_path,
+                generator_user="Intune Security Auditor",
+            )
+            console.print(f"👉 [bold underline]Executive Vector PDF:[/bold underline] file://{pdf_path}")
+        except Exception as exc:
+            console.print(f"[yellow]⚠️ Could not generate PDF: {exc}[/yellow]")
+
+    console.print()
 
 
 def cmd_setup(args):
@@ -600,7 +673,7 @@ def _dispatch_tui(skip_prereqs: bool = False):
                 target_dir = opts.get("target_dir", "deliverables")
                 profile = opts.get("profile", "balanced")
                 mock = opts.get("mock", False)
-                format = "both"
+                format = opts.get("format", "both")
                 output = None
                 domains = opts.get("selected_domains")
             cmd_audit(AuditArgs())
@@ -613,8 +686,11 @@ def _dispatch_tui(skip_prereqs: bool = False):
             console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act == "diff":
             class DiffArgs:
-                output_dir = "deliverables"
-                mock = False
+                output_dir = opts.get("output_dir", "deliverables")
+                from_run = opts.get("from_run")
+                to_run = opts.get("to_run")
+                html = opts.get("html", False)
+                mock = opts.get("mock", False)
             cmd_diff(DiffArgs())
             console.print("\n[dim]Returning to main menu...[/dim]\n")
         elif act in ("exit", "cancel"):
@@ -681,8 +757,11 @@ def main():
     lint_parser.add_argument("--directory", type=str, default="docs", help="Directory of markdown files to audit (default: docs)")
 
     # diff subcommand
-    diff_parser = subparsers.add_parser("diff", help="View configuration drift compared to last run")
+    diff_parser = subparsers.add_parser("diff", help="View configuration drift compared to last run or between two runs")
     diff_parser.add_argument("--output-dir", type=str, default="deliverables", help="Deliverables directory containing run snapshots or raw_json/ backups (default: deliverables)")
+    diff_parser.add_argument("--from", dest="from_run", type=str, default=None, help="Baseline backup run directory for offline comparison")
+    diff_parser.add_argument("--to", dest="to_run", type=str, default=None, help="Target backup run directory (defaults to latest)")
+    diff_parser.add_argument("--html", action="store_true", help="Generate interactive DRIFT_REPORT.html with visual comparisons")
     diff_parser.add_argument("--mock", action="store_true", help="Compare mock policies against saved backups")
 
     # audit subcommand
@@ -690,7 +769,7 @@ def main():
     audit_parser.add_argument("target_dir", nargs="?", default="deliverables", help="Path to deliverables directory, timestamped run, or backup raw_json/ (default: deliverables)")
     audit_parser.add_argument("--profile", choices=["balanced", "strict-stig"], default="balanced", help="Audit profile (default: balanced)")
     audit_parser.add_argument("--mock", action="store_true", help="Audit mock school district sample data")
-    audit_parser.add_argument("--format", choices=["console", "markdown", "both"], default="both", help="Output format (default: both)")
+    audit_parser.add_argument("--format", choices=["console", "markdown", "html", "pdf", "both"], default="both", help="Output format (default: both)")
     audit_parser.add_argument("--output", type=str, default=None, help="Custom file path for AUDIT_RECOMMENDATIONS.md")
 
     args = parser.parse_args()

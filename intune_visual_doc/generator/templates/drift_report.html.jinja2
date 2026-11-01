@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intune Configuration Drift Report</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --added: #10b981;
+      --added-bg: rgba(16, 185, 129, 0.12);
+      --removed: #ef4444;
+      --removed-bg: rgba(239, 68, 68, 0.12);
+      --modified: #f59e0b;
+      --modified-bg: rgba(245, 158, 11, 0.12);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.5;
+      padding: 2rem 1.5rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+    h1 { font-size: 1.875rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .meta-item strong { color: var(--accent); }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-card.added { border-top: 4px solid var(--added); }
+    .stat-card.removed { border-top: 4px solid var(--removed); }
+    .stat-card.modified { border-top: 4px solid var(--modified); }
+    .stat-card.unchanged { border-top: 4px solid var(--text-muted); }
+    .stat-num { font-size: 2rem; font-weight: 700; }
+    .stat-card.added .stat-num { color: var(--added); }
+    .stat-card.removed .stat-num { color: var(--removed); }
+    .stat-card.modified .stat-num { color: var(--modified); }
+    .stat-card.unchanged .stat-num { color: var(--text-muted); }
+    .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .policy-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .policy-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--card-border);
+    }
+    .policy-title { font-size: 1.15rem; font-weight: 600; }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge.added { background: var(--added-bg); color: var(--added); border: 1px solid var(--added); }
+    .badge.removed { background: var(--removed-bg); color: var(--removed); border: 1px solid var(--removed); }
+    .badge.modified { background: var(--modified-bg); color: var(--modified); border: 1px solid var(--modified); }
+    .badge.unchanged { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); }
+
+    .diff-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .diff-table th, .diff-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .diff-table th { background: rgba(0, 0, 0, 0.2); color: var(--text-muted); font-weight: 600; }
+    .val-old {
+      background: var(--removed-bg);
+      color: #fca5a5;
+      text-decoration: line-through;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .val-new {
+      background: var(--added-bg);
+      color: #86efac;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-family: monospace;
+      font-weight: 600;
+    }
+    .assignments-box {
+      padding: 0.75rem 1rem;
+      background: rgba(0, 0, 0, 0.15);
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.85rem;
+    }
+    .screenshots-comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.25);
+    }
+    .screenshot-pane {
+      text-align: center;
+    }
+    .screenshot-pane h4 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .screenshot-pane img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      border: 1px solid var(--card-border);
+    }
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--card-border);
+      padding-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 Intune Configuration Drift Report</h1>
+      <p class="subtitle">Auditing configuration changes, setting mutations, and assignment drift across historical snapshots.</p>
+      <div class="meta-bar">
+        <div class="meta-item">Baseline Run: <strong>{{ baseline_label }}</strong></div>
+        <div class="meta-item">Target Run: <strong>{{ target_label }}</strong></div>
+        <div class="meta-item">Generated: <strong>{{ generated_at }}</strong></div>
+      </div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card added">
+        <div class="stat-num">+{{ stats.added }}</div>
+        <div class="stat-label">Added Policies</div>
+      </div>
+      <div class="stat-card removed">
+        <div class="stat-num">-{{ stats.removed }}</div>
+        <div class="stat-label">Removed Policies</div>
+      </div>
+      <div class="stat-card modified">
+        <div class="stat-num">~{{ stats.modified }}</div>
+        <div class="stat-label">Modified Policies</div>
+      </div>
+      <div class="stat-card unchanged">
+        <div class="stat-num">{{ stats.unchanged }}</div>
+        <div class="stat-label">Unchanged Policies</div>
+      </div>
+    </div>
+
+    <section>
+      <h2 style="font-size: 1.25rem; margin-bottom: 1rem; color: #fff;">Policy Differences</h2>
+
+      {% if active_diffs %}
+        {% for d in active_diffs %}
+        <div class="policy-card">
+          <div class="policy-header">
+            <div>
+              <span class="policy-title">{{ d.name }}</span>
+              <span style="color: var(--text-muted); font-size: 0.85rem; margin-left: 0.5rem;">({{ d.category }})</span>
+            </div>
+            <div>
+              {% if d.status == 'Added' %}
+                <span class="badge added">+ Added</span>
+              {% elif d.status == 'Removed' %}
+                <span class="badge removed">- Removed</span>
+              {% else %}
+                <span class="badge modified">~ Modified</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if d.assignment_diffs %}
+          <div class="assignments-box">
+            <strong>Assignment Changes:</strong>
+            <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
+              {% for a in d.assignment_diffs %}
+              <li>{{ a }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          {% if d.setting_diffs %}
+          <table class="diff-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">Setting Parameter</th>
+                <th style="width: 30%;">Baseline Value ({{ baseline_label }})</th>
+                <th style="width: 35%;">Target Value ({{ target_label }})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in d.setting_diffs %}
+              <tr>
+                <td>
+                  <strong>{{ s.name }}</strong>
+                  {% if s.full_definition != s.name %}
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">{{ s.full_definition }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if s.old_value is not none %}
+                  <span class="val-old">{{ s.old_value }}</span>
+                  {% else %}
+                  <span style="color: var(--text-muted); font-style: italic;">Not Configured</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if s.new_value is not none %}
+                  <span class="val-new">{{ s.new_value }}</span>
+                  {% else %}
+                  <span style="color: var(--text-muted); font-style: italic;">Removed</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if d.screenshots.old_overview or d.screenshots.new_overview %}
+          <div class="screenshots-comparison">
+            <div class="screenshot-pane">
+              <h4>Baseline Screenshot ({{ baseline_label }})</h4>
+              {% if d.screenshots.old_overview %}
+              <img src="{{ d.screenshots.old_overview }}" alt="Baseline Overview" loading="lazy">
+              {% else %}
+              <p style="color: var(--text-muted); padding: 2rem;">No visual capture in baseline</p>
+              {% endif %}
+            </div>
+            <div class="screenshot-pane">
+              <h4>Target Screenshot ({{ target_label }})</h4>
+              {% if d.screenshots.new_overview %}
+              <img src="{{ d.screenshots.new_overview }}" alt="Target Overview" loading="lazy">
+              {% else %}
+              <p style="color: var(--text-muted); padding: 2rem;">No visual capture in target</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="policy-card" style="padding: 2rem; text-align: center; color: var(--added);">
+          <h3>✨ Zero Configuration Drift Detected</h3>
+          <p style="color: var(--text-muted); margin-top: 0.5rem;">All {{ stats.unchanged }} policies and settings in {{ target_label }} match {{ baseline_label }} exactly.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <footer>
+      <p>Generated by <strong>intune-visual-doc</strong> | Licensed under GNU AGPLv3 | 100% Offline Analysis</p>
+    </footer>
+  </div>
+</body>
+</html>

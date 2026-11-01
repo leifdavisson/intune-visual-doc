@@ -187,7 +187,20 @@ def interactive_audit_wizard(target_dir: str = "deliverables") -> dict:
         style=TUI_STYLE,
     ).execute()
 
-    cmd_preview = f"intunedoc audit {scope['run_dir']} --profile {profile}"
+    report_format = inquirer.select(
+        message="Select audit deliverable format:",
+        choices=[
+            {"name": "📦 All Formats (Console, Markdown, HTML, and Executive PDF) [Recommended]", "value": "both"},
+            {"name": "📄 Executive Vector PDF Packet (Printable for Board / Insurance)", "value": "pdf"},
+            {"name": "🌐 Standalone HTML Packet (Single-file offline presentation)", "value": "html"},
+            {"name": "📝 Markdown Technical Runbook (AUDIT_RECOMMENDATIONS.md)", "value": "markdown"},
+            {"name": "🖥️  Terminal Scorecard Only", "value": "console"},
+        ],
+        default="both",
+        style=TUI_STYLE,
+    ).execute()
+
+    cmd_preview = f"intunedoc audit {scope['run_dir']} --profile {profile} --format {report_format}"
     console.print(
         Panel(
             f"[bold yellow]👉 Equivalent CLI Command:[/bold yellow]\n\n"
@@ -204,6 +217,98 @@ def interactive_audit_wizard(target_dir: str = "deliverables") -> dict:
         "target_dir": scope["run_dir"],
         "profile": profile,
         "selected_domains": selected_domains,
+        "format": report_format,
+        "mock": False,
+    }
+
+
+def interactive_diff_wizard(output_dir: str = "deliverables") -> dict:
+    """
+    Interactive wizard for configuration drift comparison.
+    Supports offline comparison between two timestamped backups,
+    or comparing the live tenant against the latest backup.
+    """
+    from .deliverables import list_historical_runs, get_latest_deliverables_dir
+
+    runs = list_historical_runs(output_dir)
+    latest_dir = get_latest_deliverables_dir(output_dir)
+
+    console.print(Panel("[bold cyan]🔍 Configuration Drift Comparison Wizard[/bold cyan]"))
+
+    mode_choices = []
+    if len(runs) >= 2:
+        mode_choices.append({
+            "name": f"🔄 Compare Two Historical Runs (Offline) [{len(runs)} backups available]",
+            "value": "runs",
+        })
+    mode_choices.append({
+        "name": f"⚡ Compare Live Intune Tenant against Latest Backup ({os.path.basename(latest_dir) if latest_dir else 'None'})",
+        "value": "live",
+    })
+
+    mode = inquirer.select(
+        message="Select drift comparison mode:",
+        choices=mode_choices,
+        default=mode_choices[0]["value"],
+        style=TUI_STYLE,
+    ).execute()
+
+    from_run = None
+    to_run = None
+
+    if mode == "runs":
+        run_choices = [
+            {"name": f"{r['name']} ({r['policy_count']} policies)", "value": r["path"]}
+            for r in runs
+        ]
+        from_run = inquirer.select(
+            message="Select baseline (older) run:",
+            choices=run_choices,
+            default=run_choices[min(1, len(run_choices) - 1)]["value"],
+            style=TUI_STYLE,
+        ).execute()
+
+        to_choices = [c for c in run_choices if c["value"] != from_run]
+        to_run = inquirer.select(
+            message="Select target (newer) run to compare against baseline:",
+            choices=to_choices if to_choices else run_choices,
+            default=to_choices[0]["value"] if to_choices else run_choices[0]["value"],
+            style=TUI_STYLE,
+        ).execute()
+
+    export_html = inquirer.confirm(
+        message="Generate interactive Visual Drift HTML report (DRIFT_REPORT.html)?",
+        default=True,
+        style=TUI_STYLE,
+    ).execute()
+
+    cmd_parts = ["intunedoc diff"]
+    if from_run:
+        cmd_parts.append(f"--from {from_run}")
+    if to_run:
+        cmd_parts.append(f"--to {to_run}")
+    if export_html:
+        cmd_parts.append("--html")
+    cmd_preview = " ".join(cmd_parts)
+
+    console.print(
+        Panel(
+            f"[bold yellow]👉 Equivalent CLI Command:[/bold yellow]\n\n"
+            f"[bold green]{cmd_preview}[/bold green]\n\n"
+            f"[dim]Tip: Fast granular setting drift with screenshot and JSON diffs.[/dim]",
+            title="Command Preview",
+            border_style="yellow",
+        )
+    )
+
+    proceed = inquirer.confirm(message="Ready to execute drift diff?", default=True, style=TUI_STYLE).execute()
+
+    return {
+        "action": "diff" if proceed else "cancel",
+        "output_dir": output_dir,
+        "from_run": from_run,
+        "to_run": to_run,
+        "html": export_html,
         "mock": False,
     }
 
@@ -372,6 +477,9 @@ def run_tui_menu(skip_prereqs: bool = False) -> dict:
 
     if action == "audit":
         return interactive_audit_wizard("deliverables")
+
+    if action == "diff":
+        return interactive_diff_wizard("deliverables")
 
     if action != "run":
         return {"action": action}

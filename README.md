@@ -214,6 +214,9 @@ intunedoc backup --category compliance,configuration
 # Audit tenant security posture against CIS and Microsoft baselines
 intunedoc audit
 
+# Generate executive HTML and vector PDF packets for leadership
+intunedoc audit --format both
+
 # Audit offline mock data
 intunedoc audit --mock
 
@@ -228,7 +231,14 @@ intunedoc lint-ste --directory docs
 
 #### Step 8: Compare Configuration Drift
 ```bash
+# Compare live tenant against latest backup
 intunedoc diff
+
+# Generate interactive visual drift HTML report
+intunedoc diff --html
+
+# Compare two historical backup snapshots offline
+intunedoc diff --from deliverables/2026-11-01_100000 --to deliverables/2026-11-01_110000 --html
 ```
 
 #### Step 9: Safe Configuration Restore (Standalone)
@@ -266,6 +276,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0012: Deliverables Folder and Timestamped Runs](docs/adr/0012-deliverables-folder-and-timestamped-runs.md) (file:///home/leifdavisson/intune_docs/docs/adr/0012-deliverables-folder-and-timestamped-runs.md)
 - [ADR 0013: Configuration Backups and Safe Restore Utility](docs/adr/0013-configuration-backups-and-safe-restore-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
 - [ADR 0014: Security Posture and Best-Practice Audit Utility](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0014-security-posture-and-best-practice-audit-utility.md)
+- [ADR 0015: Executive Reporting and Visual Drift Engine](docs/adr/0015-executive-reporting-and-visual-drift-engine.md) (file:///home/leifdavisson/intune_docs/docs/adr/0015-executive-reporting-and-visual-drift-engine.md)
 
 ---
 

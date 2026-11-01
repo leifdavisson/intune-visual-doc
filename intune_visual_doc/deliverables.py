@@ -168,3 +168,38 @@ def record_run_in_catalog(
                     f.write(new_row)
 
     return catalog_path
+
+
+def list_historical_runs(base_dir: str = "deliverables") -> List[Dict[str, Any]]:
+    """
+    Scan deliverables directory for timestamped subdirectories.
+    Returns list of dicts ordered newest first.
+    """
+    base_abs = os.path.abspath(base_dir)
+    if not os.path.exists(base_abs):
+        return []
+
+    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}$")
+    runs = []
+    for item in os.listdir(base_abs):
+        full = os.path.join(base_abs, item)
+        if os.path.isdir(full) and pattern.match(item):
+            p_count = 0
+            manifest_path = os.path.join(full, "backup_manifest.json")
+            if os.path.exists(manifest_path):
+                try:
+                    import json
+                    with open(manifest_path, "r", encoding="utf-8") as f:
+                        m_data = json.load(f)
+                    p_count = m_data.get("total_policies", 0)
+                except Exception:
+                    pass
+            runs.append({
+                "name": item,
+                "timestamp": item.replace("_", " "),
+                "path": full,
+                "policy_count": p_count,
+            })
+
+    runs.sort(key=lambda x: x["name"], reverse=True)
+    return runs
