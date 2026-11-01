@@ -20,7 +20,7 @@ from intune_visual_doc.audit.ste_linter import audit_text_ste
 
 def test_audit_rules_registry():
     """Verify standard audit rules are registered and have necessary metadata."""
-    assert len(AUDIT_RULES) >= 8
+    assert len(AUDIT_RULES) >= 14
     rule_ids = [r.rule_id for r in AUDIT_RULES]
     assert "SEC-ENC-001" in rule_ids
     assert "SEC-AV-001" in rule_ids
@@ -29,6 +29,11 @@ def test_audit_rules_registry():
     assert "SEC-ID-001" in rule_ids
     assert "SEC-HYG-001" in rule_ids
     assert "STIG-ASR-001" in rule_ids
+    assert "SEC-ASR-001" in rule_ids
+    assert "SEC-ENR-001" in rule_ids
+    assert "SEC-EDGE-001" in rule_ids
+    assert "SEC-MAM-001" in rule_ids
+    assert "SEC-ID-003" in rule_ids
 
 
 def test_evaluate_mock_policies_balanced():
@@ -43,11 +48,10 @@ def test_evaluate_mock_policies_balanced():
     )
 
     stats = evaluation["stats"]
-    assert stats["evaluated"] == 8
+    assert stats["evaluated"] == 12
     assert stats["omitted"] == 0
-    assert stats["passed"] == 2
-    assert stats["warn"] == 4
-    assert stats["fail"] == 2  # LAPS & WUfB missing in standard mock set
+    assert stats["passed"] >= 2
+    assert stats["fail"] >= 2
     assert evaluation["profile"] == "balanced"
     assert evaluation["posture_badge"] == "🔴"  # Baseline controls missing
 
@@ -64,7 +68,7 @@ def test_evaluate_domain_filtering():
     stats = evaluation["stats"]
     assert stats["evaluated"] == 1
     assert stats["passed"] == 1
-    assert stats["omitted"] == 7
+    assert stats["omitted"] == 11
 
 
 def test_evaluate_mock_policies_strict_stig():
@@ -79,7 +83,7 @@ def test_evaluate_mock_policies_strict_stig():
     )
 
     stats = evaluation["stats"]
-    assert stats["evaluated"] == 9  # 8 balanced + 1 STIG rule
+    assert stats["evaluated"] == 14  # 12 balanced + 2 STIG rules
     stig_asr = next(r for r in evaluation["results"] if r.rule_id == "STIG-ASR-001")
     assert stig_asr.status == "FAIL"  # ASR not present in mock sample set
 

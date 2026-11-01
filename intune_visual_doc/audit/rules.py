@@ -580,6 +580,259 @@ def _eval_stig_asr(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> Eval
     )
 
 
+def _eval_cis_asr(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> EvaluationVerdict:
+    detected_cats = meta.get("detected_categories", set())
+    if "endpoint_security" not in detected_cats and "configuration" not in detected_cats:
+        return EvaluationVerdict(
+            status="OMITTED", badge="⚪",
+            observed_state="Category not in backup. Control not evaluated."
+        )
+
+    matching = []
+    for p in policies:
+        p_name = p.get("name", "").lower()
+        if "asr" in p_name or "attack surface" in p_name or "reduction" in p_name:
+            matching.append(p)
+            continue
+        vals = _get_setting_values(p)
+        for k in vals:
+            k_lower = k.lower()
+            if any(term in k_lower for term in ("asr", "attacksurface", "lsass", "credentialsteal")):
+                matching.append(p)
+                break
+
+    assigned = [p for p in matching if _has_included_assignments(p)]
+    if assigned:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="PASS", badge="🟢",
+            observed_state=f"ASR policy enforced with active assignment ({', '.join(names)}).",
+            evidence=f"Essential ASR protections targeted by {', '.join(names)}.",
+            findings=names,
+        )
+    if matching:
+        names = [p.get("name", "") for p in matching]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="ASR policy configured but unassigned.",
+            evidence=f"ASR profile exists ({', '.join(names)}) without active targets.",
+            findings=names,
+        )
+    return EvaluationVerdict(
+        status="FAIL", badge="🔴",
+        observed_state="No Attack Surface Reduction (ASR) rules identified.",
+        evidence="Tenant lacks essential ASR rules for credential and ransomware defense.",
+        findings=["Missing ASR policy."],
+    )
+
+
+def _eval_enrollment_restrictions(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> EvaluationVerdict:
+    detected_cats = meta.get("detected_categories", set())
+    if "enrollment" not in detected_cats and "configuration" not in detected_cats:
+        return EvaluationVerdict(
+            status="OMITTED", badge="⚪",
+            observed_state="Category not in backup. Control not evaluated."
+        )
+
+    matching = []
+    blocks_personal = False
+    for p in policies:
+        cat = p.get("category", "").lower()
+        p_name = p.get("name", "").lower()
+        if "enrollment" in cat or "enrollment" in p_name or "restriction" in p_name:
+            matching.append(p)
+            vals = _get_setting_values(p)
+            raw = p.get("raw", {})
+            for k, v in vals.items():
+                if "personaldevice" in k.lower():
+                    v_str = str(v).lower()
+                    if "block" in v_str or "true" in v_str or v_str == "1":
+                        blocks_personal = True
+            if isinstance(raw, dict):
+                plat = raw.get("platformRestrictions") or raw.get("windowsRestriction") or {}
+                if isinstance(plat, dict) and bool(plat.get("personalDeviceEnrollmentBlocked")):
+                    blocks_personal = True
+
+    assigned = [p for p in matching if _has_included_assignments(p)]
+    if assigned and blocks_personal:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="PASS", badge="🟢",
+            observed_state=f"Personal Windows enrollment blocked and enforced ({', '.join(names)}).",
+            evidence=f"Personal device enrollment blocked by {', '.join(names)}.",
+            findings=names,
+        )
+    if matching and blocks_personal:
+        names = [p.get("name", "") for p in matching]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="Enrollment restriction configured to block personal devices but unassigned.",
+            evidence=f"Restriction exists ({', '.join(names)}) without active targets.",
+            findings=names,
+        )
+    if assigned:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="Enrollment configuration assigned but personal devices are not explicitly blocked.",
+            evidence=f"Active enrollment policy: {', '.join(names)}.",
+            findings=names,
+        )
+    return EvaluationVerdict(
+        status="FAIL", badge="🔴",
+        observed_state="No device enrollment restriction blocking personal Windows devices found.",
+        evidence="Unmanaged personal devices can enroll into tenant MDM.",
+        findings=["Missing personal device enrollment restriction."],
+    )
+
+
+def _eval_edge_security(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> EvaluationVerdict:
+    detected_cats = meta.get("detected_categories", set())
+    if "configuration" not in detected_cats:
+        return EvaluationVerdict(
+            status="OMITTED", badge="⚪",
+            observed_state="Category not in backup. Control not evaluated."
+        )
+
+    matching = []
+    smartscreen_enforced = False
+    for p in policies:
+        p_name = p.get("name", "").lower()
+        if "edge" in p_name or "browser" in p_name:
+            matching.append(p)
+        vals = _get_setting_values(p)
+        for k, v in vals.items():
+            k_lower = k.lower()
+            if "smartscreen" in k_lower or "edge" in k_lower:
+                if p not in matching:
+                    matching.append(p)
+                if "smartscreen" in k_lower and ("true" in str(v).lower() or "1" in str(v) or "enabled" in str(v).lower()):
+                    smartscreen_enforced = True
+
+    assigned = [p for p in matching if _has_included_assignments(p)]
+    if assigned and smartscreen_enforced:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="PASS", badge="🟢",
+            observed_state=f"Microsoft Edge hardened with SmartScreen active ({', '.join(names)}).",
+            evidence=f"SmartScreen and browser hardening enforced by {', '.join(names)}.",
+            findings=names,
+        )
+    if matching and smartscreen_enforced:
+        names = [p.get("name", "") for p in matching]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="Microsoft Edge security configured but unassigned.",
+            evidence=f"Policy exists ({', '.join(names)}) without active targets.",
+            findings=names,
+        )
+    if assigned:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="Microsoft Edge policy assigned but SmartScreen is not explicitly verified.",
+            evidence=f"Configured policy: {', '.join(names)}.",
+            findings=names,
+        )
+    return EvaluationVerdict(
+        status="FAIL", badge="🔴",
+        observed_state="No enterprise baseline or SmartScreen policy configured for Microsoft Edge.",
+        evidence="Browser lacks central security configuration.",
+        findings=["Missing Microsoft Edge baseline."],
+    )
+
+
+def _eval_mam_app_protection(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> EvaluationVerdict:
+    detected_cats = meta.get("detected_categories", set())
+    if "apps" not in detected_cats:
+        return EvaluationVerdict(
+            status="OMITTED", badge="⚪",
+            observed_state="Category not in backup. Control not evaluated."
+        )
+
+    matching = []
+    for p in policies:
+        cat = p.get("category", "").lower()
+        p_name = p.get("name", "").lower()
+        if "app" in cat or "protection" in p_name or "mam" in p_name:
+            matching.append(p)
+        vals = _get_setting_values(p)
+        for k in vals:
+            if any(term in k.lower() for term in ("dataprotection", "alloweddataingress", "pinrequired", "appprotection")):
+                if p not in matching:
+                    matching.append(p)
+                break
+
+    assigned = [p for p in matching if _has_included_assignments(p)]
+    if assigned:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="PASS", badge="🟢",
+            observed_state=f"MAM App Protection policy enforced with active assignment ({', '.join(names)}).",
+            evidence=f"Application data isolation targeted by {', '.join(names)}.",
+            findings=names,
+        )
+    if matching:
+        names = [p.get("name", "") for p in matching]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="MAM App Protection configured but unassigned.",
+            evidence=f"Protection exists ({', '.join(names)}) without active targets.",
+            findings=names,
+        )
+    return EvaluationVerdict(
+        status="FAIL", badge="🔴",
+        observed_state="No Mobile Application Management (MAM) App Protection policies identified.",
+        evidence="Tenant lacks DLP cut/copy/paste isolation for managed applications.",
+        findings=["Missing MAM App Protection policy."],
+    )
+
+
+def _eval_credential_guard(policies: List[Dict[str, Any]], meta: Dict[str, Any]) -> EvaluationVerdict:
+    detected_cats = meta.get("detected_categories", set())
+    if "configuration" not in detected_cats and "endpoint_security" not in detected_cats:
+        return EvaluationVerdict(
+            status="OMITTED", badge="⚪",
+            observed_state="Category not in backup. Control not evaluated."
+        )
+
+    matching = []
+    for p in policies:
+        p_name = p.get("name", "").lower()
+        if "credential guard" in p_name or "device guard" in p_name or "vbs" in p_name:
+            matching.append(p)
+        vals = _get_setting_values(p)
+        for k in vals:
+            if any(term in k.lower() for term in ("credentialguard", "virtualizationbasedsecurity", "deviceguard")):
+                if p not in matching:
+                    matching.append(p)
+                break
+
+    assigned = [p for p in matching if _has_included_assignments(p)]
+    if assigned:
+        names = [p.get("name", "") for p in assigned]
+        return EvaluationVerdict(
+            status="PASS", badge="🟢",
+            observed_state=f"Credential Guard / VBS enforced with active assignment ({', '.join(names)}).",
+            evidence=f"Hardware-isolated security targeted by {', '.join(names)}.",
+            findings=names,
+        )
+    if matching:
+        names = [p.get("name", "") for p in matching]
+        return EvaluationVerdict(
+            status="WARN", badge="🟡",
+            observed_state="Credential Guard / VBS configured but unassigned.",
+            evidence=f"Policy exists ({', '.join(names)}) without active targets.",
+            findings=names,
+        )
+    return EvaluationVerdict(
+        status="FAIL", badge="🔴",
+        observed_state="No Credential Guard or Virtualization-Based Security (VBS) policy identified.",
+        evidence="Memory-resident credential theft defenses are not enforced.",
+        findings=["Missing Credential Guard policy."],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Master Rule Registry
 # ---------------------------------------------------------------------------
@@ -710,5 +963,75 @@ AUDIT_RULES: List[AuditRule] = [
         remediation_guidance="Deploy ASR rules in Audit mode for 30 days before moving to Block mode.",
         learn_url="https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction",
         evaluator=_eval_stig_asr,
+    ),
+    AuditRule(
+        rule_id="SEC-ASR-001",
+        domain="attack_surface_reduction",
+        domain_label="Attack Surface Reduction",
+        title="CIS Attack Surface Reduction (ASR) Essential Rules",
+        category_dependency="endpoint_security",
+        profile="balanced",
+        benchmark_ref="CIS Intune v1.1.0 (2.4), MS Security Baseline, CISA CPG 2.F",
+        benchmark_intent="Block credential theft from LSASS, ransomware behaviors, and malicious scripts.",
+        field_context="Administrators fear ASR blocks legitimate PowerShell tools and educational software.",
+        remediation_guidance="Deploy ASR rules targeting LSASS protection and ransomware mitigation to all devices.",
+        learn_url="https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction",
+        evaluator=_eval_cis_asr,
+    ),
+    AuditRule(
+        rule_id="SEC-ENR-001",
+        domain="enrollment_restrictions",
+        domain_label="Device Enrollment Hygiene",
+        title="Windows Enrollment Restrictions (Block Personal BYOD)",
+        category_dependency="enrollment",
+        profile="balanced",
+        benchmark_ref="CIS Intune v1.1.0 (1.1), Microsoft Zero Trust Device Guidance",
+        benchmark_intent="Prevent users from enrolling unmanaged, non-corporate personal Windows devices into MDM.",
+        field_context="Students and staff try to connect personal laptops to get district licensing.",
+        remediation_guidance="Configure device platform restrictions to block personal Windows enrollment.",
+        learn_url="https://learn.microsoft.com/en-us/mem/intune/enrollment/enrollment-restrictions-set",
+        evaluator=_eval_enrollment_restrictions,
+    ),
+    AuditRule(
+        rule_id="SEC-EDGE-001",
+        domain="browser_security",
+        domain_label="Enterprise Browser Security",
+        title="Microsoft Edge Enterprise Security Baseline",
+        category_dependency="configuration",
+        profile="balanced",
+        benchmark_ref="CIS Microsoft Edge Benchmark v2.0, Microsoft Security Baseline for Edge",
+        benchmark_intent="Enforce Defender SmartScreen and browser protection against malicious websites.",
+        field_context="Users complain when SmartScreen blocks newly registered school web services.",
+        remediation_guidance="Configure Microsoft Edge policy with SmartScreen enabled and untrusted download blocks.",
+        learn_url="https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies",
+        evaluator=_eval_edge_security,
+    ),
+    AuditRule(
+        rule_id="SEC-MAM-001",
+        domain="app_protection",
+        domain_label="Mobile Application Management",
+        title="MAM App Data Protection (DLP & Cut/Copy/Paste Isolation)",
+        category_dependency="apps",
+        profile="balanced",
+        benchmark_ref="CIS Intune v1.1.0 (6.1), Microsoft App Protection Best Practices",
+        benchmark_intent="Isolate corporate data in managed applications and prevent exfiltration to personal apps.",
+        field_context="Staff want to copy work email text into personal messaging apps on their phones.",
+        remediation_guidance="Deploy MAM App Protection policies for iOS and Android with cut/copy paste restrictions.",
+        learn_url="https://learn.microsoft.com/en-us/mem/intune/apps/app-protection-policy",
+        evaluator=_eval_mam_app_protection,
+    ),
+    AuditRule(
+        rule_id="SEC-ID-003",
+        domain="identity_credentials",
+        domain_label="Identity & Credential Hygiene",
+        title="Virtualization-Based Security (VBS) & Credential Guard",
+        category_dependency="configuration",
+        profile="strict-stig",
+        benchmark_ref="DoD DISA Windows 11 STIG V-253286, CIS Microsoft Windows 11 v3.0 (18.9.16)",
+        benchmark_intent="Isolate and protect NTLM password hashes and Kerberos tickets using hardware virtualization.",
+        field_context="Older workstation hardware without modern virtualization CPUs will fail to boot.",
+        remediation_guidance="Enable Credential Guard and Secure Boot with DMA protection on modern workstations.",
+        learn_url="https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/configure",
+        evaluator=_eval_credential_guard,
     ),
 ]

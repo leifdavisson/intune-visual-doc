@@ -95,6 +95,7 @@ flowchart TD
    - Exports fast raw JSON backups (`intunedoc backup`) with `backup_manifest.json` in seconds.
    - Runs `intunedoc lint-ste` to guarantee standard compliance.
    - Tracks configuration drift with `intunedoc diff` and visual reports (`DRIFT_REPORT.html`).
+   - Evaluates multi-tenant portfolios and outputs comparative heatmaps (`intunedoc batch`).
    - Restores policies safely with `scripts/intune_restore.py` (assignments stripped, collision checks, dry-run mode).
    - Offers `intunedoc logout` to wipe all local credentials.
 

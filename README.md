@@ -241,7 +241,19 @@ intunedoc diff --html
 intunedoc diff --from deliverables/2026-11-01_100000 --to deliverables/2026-11-01_110000 --html
 ```
 
-#### Step 9: Safe Configuration Restore (Standalone)
+#### Step 9: Multi-Tenant MSP Batch Auditing
+```bash
+# Audit simulated multi-tenant consortium offline
+intunedoc batch --mock
+
+# Generate sample portfolio configuration manifest
+intunedoc batch --generate-sample tenants.sample.json
+
+# Audit portfolio of managed tenants with comparative matrix and heatmap
+intunedoc batch --config tenants.json --format all
+```
+
+#### Step 10: Safe Configuration Restore (Standalone)
 ```bash
 # Simulate restore plan without modifying tenant
 python scripts/intune_restore.py --dry-run deliverables/latest/raw_json/compliance/policy.json
@@ -250,7 +262,7 @@ python scripts/intune_restore.py --dry-run deliverables/latest/raw_json/complian
 python scripts/intune_restore.py deliverables/latest/raw_json/compliance/policy.json
 ```
 
-#### Step 10: Logout & Purge Credentials
+#### Step 11: Logout & Purge Credentials
 ```bash
 intunedoc logout
 ```
@@ -277,6 +289,7 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 - [ADR 0013: Configuration Backups and Safe Restore Utility](docs/adr/0013-configuration-backups-and-safe-restore-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
 - [ADR 0014: Security Posture and Best-Practice Audit Utility](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0014-security-posture-and-best-practice-audit-utility.md)
 - [ADR 0015: Executive Reporting and Visual Drift Engine](docs/adr/0015-executive-reporting-and-visual-drift-engine.md) (file:///home/leifdavisson/intune_docs/docs/adr/0015-executive-reporting-and-visual-drift-engine.md)
+- [ADR 0016: Extended Rule Packs and MSP Batch Automation](docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md) (file:///home/leifdavisson/intune_docs/docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md)
 
 ---
 

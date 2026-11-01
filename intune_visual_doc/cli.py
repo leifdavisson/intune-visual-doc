@@ -556,6 +556,62 @@ def cmd_audit(args):
     console.print()
 
 
+def cmd_batch(args):
+    """Execute multi-tenant batch operations (posture audit or backups) across portfolio."""
+    from .audit.batch import (
+        load_portfolio_config,
+        generate_sample_config,
+        get_mock_portfolio,
+        run_msp_audit_batch,
+        display_msp_console_matrix,
+        render_msp_markdown_matrix,
+        render_msp_html_matrix,
+    )
+
+    if getattr(args, "generate_sample", None):
+        out = generate_sample_config(args.generate_sample)
+        console.print(f"[bold green]✅ Generated sample portfolio manifest:[/bold green] {out}")
+        console.print("[dim]Edit this file with your tenant IDs or backup directories.[/dim]\n")
+        return
+
+    use_mock = getattr(args, "mock", False)
+    config_file = getattr(args, "config", None)
+    profile = getattr(args, "profile", "balanced") or "balanced"
+    fmt = getattr(args, "format", "all") or "all"
+    output_dir = getattr(args, "output_dir", "deliverables/msp_portfolio") or "deliverables/msp_portfolio"
+
+    if use_mock or not config_file:
+        if not use_mock and not config_file:
+            console.print("[yellow]Notice: No --config provided. Running with sample mock portfolio.[/yellow]")
+            console.print("[dim]Hint: Use 'intunedoc batch --generate-sample tenants.json' to create a manifest.[/dim]\n")
+        portfolio_name, targets = get_mock_portfolio()
+    else:
+        try:
+            portfolio_name, targets = load_portfolio_config(config_file)
+        except Exception as e:
+            console.print(f"[bold red]❌ Failed to load portfolio config:[/bold red] {e}")
+            sys.exit(1)
+
+    console.print(f"[cyan]Auditing {len(targets)} tenants in portfolio: {portfolio_name}...[/cyan]")
+    report = run_msp_audit_batch(portfolio_name=portfolio_name, targets=targets, profile=profile)
+
+    display_msp_console_matrix(report)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    if fmt in ("markdown", "all"):
+        md_path = os.path.join(output_dir, "MSP_PORTFOLIO_AUDIT.md")
+        render_msp_markdown_matrix(report, md_path)
+        console.print(f"👉 [bold underline]MSP Markdown Matrix:[/bold underline] file://{os.path.abspath(md_path)}")
+
+    if fmt in ("html", "all"):
+        html_path = os.path.join(output_dir, "MSP_PORTFOLIO_AUDIT.html")
+        render_msp_html_matrix(report, html_path)
+        console.print(f"👉 [bold underline]MSP HTML Dashboard:[/bold underline] file://{os.path.abspath(html_path)}")
+
+    console.print()
+
+
 def cmd_setup(args):
     """Guide or automate creation of read-only SPN and screenshot service account."""
     from .setup_wizard import (
@@ -772,6 +828,15 @@ def main():
     audit_parser.add_argument("--format", choices=["console", "markdown", "html", "pdf", "both"], default="both", help="Output format (default: both)")
     audit_parser.add_argument("--output", type=str, default=None, help="Custom file path for AUDIT_RECOMMENDATIONS.md")
 
+    # batch subcommand
+    batch_parser = subparsers.add_parser("batch", help="Multi-tenant batch automation and portfolio posture audits")
+    batch_parser.add_argument("--config", type=str, default=None, help="Path to portfolio JSON manifest (e.g. tenants.json)")
+    batch_parser.add_argument("--profile", choices=["balanced", "strict-stig"], default="balanced", help="Audit profile (default: balanced)")
+    batch_parser.add_argument("--mock", action="store_true", help="Audit simulated multi-tenant sample consortium")
+    batch_parser.add_argument("--format", choices=["console", "markdown", "html", "all"], default="all", help="Output format (default: all)")
+    batch_parser.add_argument("--output-dir", type=str, default="deliverables/msp_portfolio", help="Output directory for portfolio deliverables (default: deliverables/msp_portfolio)")
+    batch_parser.add_argument("--generate-sample", type=str, default=None, help="Generate a template tenants.sample.json file")
+
     args = parser.parse_args()
 
     if args.command == "tui":
@@ -794,6 +859,8 @@ def main():
         cmd_diff(args)
     elif args.command == "audit":
         cmd_audit(args)
+    elif args.command == "batch":
+        cmd_batch(args)
     else:
         parser.print_help()
 

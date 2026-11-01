@@ -161,9 +161,13 @@ def interactive_audit_wizard(target_dir: str = "deliverables") -> dict:
     domain_choices = [
         {"name": "Endpoint Encryption (BitLocker / FileVault)", "value": "endpoint_encryption", "enabled": True},
         {"name": "Antivirus & EDR (Microsoft Defender)", "value": "antivirus_edr", "enabled": True},
+        {"name": "Attack Surface Reduction (ASR Essential Rules)", "value": "attack_surface_reduction", "enabled": True},
         {"name": "Host Firewall (Domain, Private, Public)", "value": "host_firewall", "enabled": True},
         {"name": "Windows Update Cadence (WUfB Rings)", "value": "update_cadence", "enabled": "configuration" in scope["detected_categories"] or not scope["detected_categories"]},
-        {"name": "Identity & Credential Hygiene (LAPS, Screen Lock)", "value": "identity_credentials", "enabled": True},
+        {"name": "Identity & Credential Hygiene (LAPS, Screen Lock, Credential Guard)", "value": "identity_credentials", "enabled": True},
+        {"name": "Device Enrollment Hygiene (Block Personal BYOD)", "value": "enrollment_restrictions", "enabled": "enrollment" in scope["detected_categories"] or not scope["detected_categories"]},
+        {"name": "Enterprise Browser Security (Microsoft Edge Baseline)", "value": "browser_security", "enabled": "configuration" in scope["detected_categories"] or not scope["detected_categories"]},
+        {"name": "Mobile Application Management (MAM App Protection)", "value": "app_protection", "enabled": "apps" in scope["detected_categories"] or not scope["detected_categories"]},
         {"name": "Policy Hygiene & Lifecycle (Dormant Policies)", "value": "policy_hygiene", "enabled": True},
     ]
 

@@ -62,7 +62,10 @@ Repository guide for AI coding agents working on `intune-visual-doc` (licensed u
 Load only the ADR or skill matching your active task branch:
 
 - **ADR Index**: [`docs/adr/README.md`](docs/adr/README.md) —
-  full decision table (`ADR 0001`–`ADR 0015`) when adding or amending architectural decisions.
+  full decision table (`ADR 0001`–`ADR 0016`) when adding or amending architectural decisions.
+- **Extended Rule Packs & MSP Batch Automation**:
+  [`docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md`](docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md) —
+  when updating CIS benchmarks, MAM rules, Edge baselines, or multi-tenant batch auditing in `audit/batch.py`.
 - **Executive Reports & Visual Drift Engine**:
   [`docs/adr/0015-executive-reporting-and-visual-drift-engine.md`](docs/adr/0015-executive-reporting-and-visual-drift-engine.md) —
   when updating vector PDF generation, standalone HTML bundles, or granular drift diffing.

@@ -14,6 +14,18 @@ from .rules import (
     LEGAL_SAFE_HARBOR_NOTICE,
     get_legal_disclaimer_text,
 )
+from .batch import (
+    TenantTarget,
+    TenantAuditOutcome,
+    PortfolioAuditReport,
+    load_portfolio_config,
+    generate_sample_config,
+    get_mock_portfolio,
+    run_msp_audit_batch,
+    display_msp_console_matrix,
+    render_msp_markdown_matrix,
+    render_msp_html_matrix,
+)
 
 __all__ = [
     "audit_text_ste",
@@ -29,4 +41,14 @@ __all__ = [
     "EvaluationVerdict",
     "LEGAL_SAFE_HARBOR_NOTICE",
     "get_legal_disclaimer_text",
+    "TenantTarget",
+    "TenantAuditOutcome",
+    "PortfolioAuditReport",
+    "load_portfolio_config",
+    "generate_sample_config",
+    "get_mock_portfolio",
+    "run_msp_audit_batch",
+    "display_msp_console_matrix",
+    "render_msp_markdown_matrix",
+    "render_msp_html_matrix",
 ]
