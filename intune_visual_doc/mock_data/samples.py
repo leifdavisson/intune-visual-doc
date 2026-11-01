@@ -173,22 +173,20 @@ def get_mock_audit_events() -> List[Dict[str, Any]]:
     ]
 
 
+_MOCK_PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02"
+    b"\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
 def setup_mock_screenshots(output_dir: str, policies: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
     """
-    Copy real PNG screenshots from examples into the target assets folder for mock policies.
+    Generate synthetic placeholder PNG screenshots for mock policies.
     """
-    example_folder = os.path.join(
-        os.getcwd(), "examples", "Intune - Setup in 365 Tenant _ Knowledge Base _ KCSOS_files"
-    )
     shots_map = {}
 
-    src_images = []
-    if os.path.exists(example_folder):
-        for f in os.listdir(example_folder):
-            if "attachment" in f and os.path.getsize(os.path.join(example_folder, f)) > 30000:
-                src_images.append(os.path.join(example_folder, f))
-
-    for idx, p in enumerate(policies):
+    for p in policies:
         p_id = p["id"]
         slug = p.get("slug") or slugify(p.get("name", p_id))
         cat = p.get("category", "configuration")
@@ -199,16 +197,14 @@ def setup_mock_screenshots(output_dir: str, policies: List[Dict[str, Any]]) -> D
         ov_dest = os.path.join(target_dir, "overview.png")
         pr_dest = os.path.join(target_dir, "properties.png")
 
-        if src_images:
-            img1 = src_images[idx % len(src_images)]
-            img2 = src_images[(idx + 1) % len(src_images)]
-            shutil.copy(img1, ov_dest)
-            shutil.copy(img2, pr_dest)
-            shots_map[p_id] = {
-                "overview": ov_dest,
-                "properties": pr_dest,
-            }
-        else:
-            shots_map[p_id] = {}
+        with open(ov_dest, "wb") as f:
+            f.write(_MOCK_PNG_BYTES)
+        with open(pr_dest, "wb") as f:
+            f.write(_MOCK_PNG_BYTES)
+
+        shots_map[p_id] = {
+            "overview": ov_dest,
+            "properties": pr_dest,
+        }
 
     return shots_map

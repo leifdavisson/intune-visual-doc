@@ -58,3 +58,6 @@ deliverables/latest
 *restore_receipt_*.json
 /tmp/unmasked_compliance.json
 
+# Local Examples & Private Tenant Data
+examples/
+
