@@ -19,7 +19,7 @@ This makes it accessible to both junior support technicians and senior auditors.
 
 ## Architecture & Workflow
 
-[Open Full Workflow Specification](docs/WORKFLOW.md) (file:///home/leifdavisson/intune_docs/docs/WORKFLOW.md)
+[Open Full Workflow Specification](docs/WORKFLOW.md)
 
 ```mermaid
 flowchart TD
@@ -135,6 +135,8 @@ It parses `Local State` to display profile names and corporate emails so admins 
 
 ### 1. Installation
 
+#### Option A: Local Python Virtual Environment
+
 ```bash
 git clone https://github.com/leifdavisson/intune-visual-doc.git
 cd intune-visual-doc
@@ -150,7 +152,37 @@ pip install -e ".[dev]"
 playwright install chromium
 ```
 
-### 2. Interactive Menu (TUI)
+#### Option B: Docker Container (Zero Local Dependencies)
+
+Run without installing Python or browser packages locally:
+
+```bash
+# 1. Copy sample environment file and set SPN credentials
+cp .env.example .env
+
+# 2. Build and verify offline mock data
+docker compose run --rm intunedoc run --mock
+docker compose run --rm intunedoc audit --mock
+
+# 3. Run live extraction (mounts ./deliverables and ./.auth)
+docker compose run --rm intunedoc run
+```
+
+### 2. Environment Variables & Authentication
+
+Configure your Service Principal in `.env` or inject variables at runtime:
+
+```bash
+AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
+AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
+AZURE_CLIENT_SECRET=your-spn-client-secret-here
+```
+
+Custom path variables:
+- `INTUNEDOC_OUTPUT_DIR`: Target deliverables directory (defaults to `deliverables`).
+- `INTUNEDOC_AUTH_DIR`: Secure credentials storage path (defaults to `.auth`).
+
+### 3. Interactive Menu (TUI)
 
 Launch the interactive interface with no arguments:
 
@@ -162,7 +194,7 @@ intunedoc tui
 
 The menu lets you select categories, toggle screenshots, set audit log retention days, and view the live CLI command.
 
-### 3. Chronological CLI Usage
+### 4. Chronological CLI Usage
 
 #### Step 1: Check Prerequisites & Select Profile
 ```bash
@@ -181,7 +213,7 @@ intunedoc setup --export-scripts
 intunedoc setup --test-spn
 ```
 
-Prefer manual portal configuration? See the [Paranoid Administrator Setup Guide](docs/PARANOID_ADMIN_SETUP.md) (file:///home/leifdavisson/intune_docs/docs/PARANOID_ADMIN_SETUP.md).
+Prefer manual portal configuration? See the [Paranoid Administrator Setup Guide](docs/PARANOID_ADMIN_SETUP.md).
 
 #### Step 3: Authenticate & Hook Session
 ```bash
@@ -262,7 +294,19 @@ python scripts/intune_restore.py --dry-run deliverables/latest/raw_json/complian
 python scripts/intune_restore.py deliverables/latest/raw_json/compliance/policy.json
 ```
 
-#### Step 11: Logout & Purge Credentials
+#### Step 11: Git-Backed Change Tracking & Emergency Backups
+Track tenant drift in a private Git repository and store versioned emergency restore points:
+```bash
+# 1. Export 1-to-1 unmasked configuration backup
+intunedoc backup --unsanitize --output-dir backups
+
+# 2. Commit and push snapshot to your private repository
+git add backups/
+git commit -m "chore(backup): intune snapshot $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+git push origin main
+```
+
+#### Step 12: Logout & Purge Credentials
 ```bash
 intunedoc logout
 ```
@@ -273,30 +317,30 @@ intunedoc logout
 
 All design decisions are recorded in standard ADR format using Simplified Technical English:
 
-- [ADR Index: Full Decision Table](docs/adr/README.md) (file:///home/leifdavisson/intune_docs/docs/adr/README.md)
-- [ADR 0001: Record Architecture Decisions](docs/adr/0001-record-architecture-decisions.md) (file:///home/leifdavisson/intune_docs/docs/adr/0001-record-architecture-decisions.md)
-- [ADR 0002: Dual Authentication and Session Persistence](docs/adr/0002-dual-authentication-and-session-persistence.md) (file:///home/leifdavisson/intune_docs/docs/adr/0002-dual-authentication-and-session-persistence.md)
-- [ADR 0003: Data Extraction via Microsoft Graph](docs/adr/0003-data-extraction-via-microsoft-graph.md) (file:///home/leifdavisson/intune_docs/docs/adr/0003-data-extraction-via-microsoft-graph.md)
-- [ADR 0004: Visual Capture Using Playwright](docs/adr/0004-visual-capture-using-playwright.md) (file:///home/leifdavisson/intune_docs/docs/adr/0004-visual-capture-using-playwright.md)
-- [ADR 0005: ASD-STE100 Documentation Standards](docs/adr/0005-asd-ste100-documentation-standards.md) (file:///home/leifdavisson/intune_docs/docs/adr/0005-asd-ste100-documentation-standards.md)
-- [ADR 0006: Security Secret Sanitization by Default](docs/adr/0006-security-secret-sanitization-by-default.md) (file:///home/leifdavisson/intune_docs/docs/adr/0006-security-secret-sanitization-by-default.md)
-- [ADR 0007: Interactive Terminal User Interface](docs/adr/0007-interactive-terminal-user-interface.md) (file:///home/leifdavisson/intune_docs/docs/adr/0007-interactive-terminal-user-interface.md)
-- [ADR 0008: Browser Detection and Credential Security](docs/adr/0008-browser-detection-and-credential-security.md) (file:///home/leifdavisson/intune_docs/docs/adr/0008-browser-detection-and-credential-security.md)
-- [ADR 0009: Default Prerequisites and Dependency Gates](docs/adr/0009-default-prerequisites-and-dependency-gates.md) (file:///home/leifdavisson/intune_docs/docs/adr/0009-default-prerequisites-and-dependency-gates.md)
-- [ADR 0010: Agent Documentation and Skill Architecture](docs/adr/0010-agent-documentation-and-skill-architecture.md) (file:///home/leifdavisson/intune_docs/docs/adr/0010-agent-documentation-and-skill-architecture.md)
-- [ADR 0011: Read-Only Service Principal and Service Account Setup](docs/adr/0011-read-only-spn-and-service-account-setup.md) (file:///home/leifdavisson/intune_docs/docs/adr/0011-read-only-spn-and-service-account-setup.md)
-- [ADR 0012: Deliverables Folder and Timestamped Runs](docs/adr/0012-deliverables-folder-and-timestamped-runs.md) (file:///home/leifdavisson/intune_docs/docs/adr/0012-deliverables-folder-and-timestamped-runs.md)
-- [ADR 0013: Configuration Backups and Safe Restore Utility](docs/adr/0013-configuration-backups-and-safe-restore-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
-- [ADR 0014: Security Posture and Best-Practice Audit Utility](docs/adr/0014-security-posture-and-best-practice-audit-utility.md) (file:///home/leifdavisson/intune_docs/docs/adr/0014-security-posture-and-best-practice-audit-utility.md)
-- [ADR 0015: Executive Reporting and Visual Drift Engine](docs/adr/0015-executive-reporting-and-visual-drift-engine.md) (file:///home/leifdavisson/intune_docs/docs/adr/0015-executive-reporting-and-visual-drift-engine.md)
-- [ADR 0016: Extended Rule Packs and MSP Batch Automation](docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md) (file:///home/leifdavisson/intune_docs/docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md)
+- [ADR Index: Full Decision Table](docs/adr/README.md)
+- [ADR 0001: Record Architecture Decisions](docs/adr/0001-record-architecture-decisions.md)
+- [ADR 0002: Dual Authentication and Session Persistence](docs/adr/0002-dual-authentication-and-session-persistence.md)
+- [ADR 0003: Data Extraction via Microsoft Graph](docs/adr/0003-data-extraction-via-microsoft-graph.md)
+- [ADR 0004: Visual Capture Using Playwright](docs/adr/0004-visual-capture-using-playwright.md)
+- [ADR 0005: ASD-STE100 Documentation Standards](docs/adr/0005-asd-ste100-documentation-standards.md)
+- [ADR 0006: Security Secret Sanitization by Default](docs/adr/0006-security-secret-sanitization-by-default.md)
+- [ADR 0007: Interactive Terminal User Interface](docs/adr/0007-interactive-terminal-user-interface.md)
+- [ADR 0008: Browser Detection and Credential Security](docs/adr/0008-browser-detection-and-credential-security.md)
+- [ADR 0009: Default Prerequisites and Dependency Gates](docs/adr/0009-default-prerequisites-and-dependency-gates.md)
+- [ADR 0010: Agent Documentation and Skill Architecture](docs/adr/0010-agent-documentation-and-skill-architecture.md)
+- [ADR 0011: Read-Only Service Principal and Service Account Setup](docs/adr/0011-read-only-spn-and-service-account-setup.md)
+- [ADR 0012: Deliverables Folder and Timestamped Runs](docs/adr/0012-deliverables-folder-and-timestamped-runs.md)
+- [ADR 0013: Configuration Backups and Safe Restore Utility](docs/adr/0013-configuration-backups-and-safe-restore-utility.md)
+- [ADR 0014: Security Posture and Best-Practice Audit Utility](docs/adr/0014-security-posture-and-best-practice-audit-utility.md)
+- [ADR 0015: Executive Reporting and Visual Drift Engine](docs/adr/0015-executive-reporting-and-visual-drift-engine.md)
+- [ADR 0016: Extended Rule Packs and MSP Batch Automation](docs/adr/0016-extended-rule-packs-and-msp-batch-automation.md)
 
 ---
 
 ## AI Agent & Skill Guides
 
-- [AGENTS.md: Repository Invariants & Context Pointers](AGENTS.md) (file:///home/leifdavisson/intune_docs/AGENTS.md)
-- [SKILL.md: Portable Agent Skill Package](.agents/skills/intune-visual-doc/SKILL.md) (file:///home/leifdavisson/intune_docs/.agents/skills/intune-visual-doc/SKILL.md)
+- [AGENTS.md: Repository Invariants & Context Pointers](AGENTS.md)
+- [SKILL.md: Portable Agent Skill Package](.agents/skills/intune-visual-doc/SKILL.md)
 
 ---
 
@@ -316,4 +360,4 @@ All design decisions are recorded in standard ADR format using Simplified Techni
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (GNU AGPLv3)**.
-See the [LICENSE](LICENSE) (file:///home/leifdavisson/intune_docs/LICENSE) file for details.
+See the [LICENSE](LICENSE) file for details.

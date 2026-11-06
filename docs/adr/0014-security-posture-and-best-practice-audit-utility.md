@@ -16,7 +16,7 @@ Administrators need pragmatic documentation with actionable steps, operational c
 ## Decision
 
 1. **Multi-Profile Baseline Architecture**:
-   Implement a declarative rule engine in [`intune_visual_doc/audit/rules.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/audit/rules.py).
+   Implement a declarative rule engine in [`intune_visual_doc/audit/rules.py`](../../intune_visual_doc/audit/rules.py).
    Default to `--profile balanced` grounded in [CIS Microsoft Intune Benchmark v1.1.0 Level 1](https://www.cisecurity.org/benchmark/microsoft_intune),
    [Microsoft Security Baselines](https://learn.microsoft.com/en-us/mem/intune/protect/security-baselines),
    [NIST SP 800-63B](https://csrc.nist.gov/pubs/sp/800/63/b/final), and
@@ -26,7 +26,7 @@ Administrators need pragmatic documentation with actionable steps, operational c
 2. **Offline JSON Engine & Partial Backup Tolerance**:
    Analyze exported `raw_json/` backups without making live network calls.
    Inspect available workload directories before evaluation.
-   Parse nested Settings Catalog instances and definitions recursively using [`flattener.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/graph/flattener.py).
+   Parse nested Settings Catalog instances and definitions recursively using [`flattener.py`](../../intune_visual_doc/graph/flattener.py).
    Differentiate compliance health checks from active device configuration enforcement.
    Compliance checks without an enforcing policy generate a warning (`🟡 WARN`), preventing false positive compliance claims.
    Only count policies with active inclusion assignment targets as assigned.

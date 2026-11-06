@@ -30,7 +30,7 @@ Technicians need to see exact parameter changes and side-by-side portal screensh
    - Include screenshot thumbnail galleries linking directly to high-resolution portal captures.
 
 3. **Granular Setting-Level Drift Engine (`audit/drift.py`)**:
-   - Upgrade drift detection to parse nested Settings Catalog instances and compliance dictionaries using [`flattener.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/graph/flattener.py).
+   - Upgrade drift detection to parse nested Settings Catalog instances and compliance dictionaries using [`flattener.py`](../../intune_visual_doc/graph/flattener.py).
    - Support arbitrary run-to-run comparison syntax:
      ```bash
      intunedoc diff --from deliverables/2026-10-01_120000 --to deliverables/2026-11-01_120000

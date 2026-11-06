@@ -18,7 +18,7 @@ from .graph import GraphClient, PolicyCollector
 from .visual import ScreenshotManager
 from .generator import DocGenerator
 from .audit import lint_markdown_directory, compare_with_backups
-from .prerequisites import display_prerequisites_table, wipe_all_credentials, load_config
+from .prerequisites import display_prerequisites_table, wipe_all_credentials, load_config, load_dotenv
 from .mock_data import get_mock_policies, get_mock_audit_events, setup_mock_screenshots
 from .deliverables import (
     create_timestamped_run_dir,
@@ -637,11 +637,23 @@ def cmd_setup(args):
     if getattr(args, "test_spn", False):
         display_setup_banner()
         cfg = load_config()
-        t_id = os.environ.get("AZURE_TENANT_ID") or cfg.get("azure_tenant_id")
-        c_id = os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id")
-        sec = os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret")
+        t_id = os.environ.get("AZURE_TENANT_ID") or os.environ.get("INTUNE_TENANT_ID") or cfg.get("azure_tenant_id")
+        c_id = os.environ.get("AZURE_CLIENT_ID") or os.environ.get("INTUNE_CLIENT_ID") or cfg.get("azure_client_id")
+        sec = os.environ.get("AZURE_CLIENT_SECRET") or os.environ.get("INTUNE_CLIENT_SECRET") or cfg.get("azure_client_secret")
+
+        if (not t_id or not c_id or not sec) and sys.stdin.isatty():
+            console.print("[yellow]SPN credentials not found in environment or .auth/config.json.[/yellow]")
+            console.print("[dim]Enter Service Principal values below to test live connectivity:[/dim]\n")
+            try:
+                from InquirerPy import inquirer
+                t_id = t_id or inquirer.text(message="Entra / Intune Tenant ID (GUID):").execute()
+                c_id = c_id or inquirer.text(message="Application / Client ID (GUID):").execute()
+                sec = sec or inquirer.secret(message="Client Secret:").execute()
+            except Exception:
+                pass
+
         if not t_id or not c_id or not sec:
-            console.print("[red]❌ SPN credentials missing. Run 'intunedoc setup' or set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET.[/red]")
+            console.print("[red]❌ SPN credentials missing. Set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET or run 'intunedoc setup'.[/red]")
             return
         console.print("[yellow]Testing configured SPN credentials against Microsoft Graph...[/yellow]")
         res = verify_spn_credentials(t_id, c_id, sec)
@@ -757,6 +769,9 @@ def _dispatch_tui(skip_prereqs: bool = False):
 
 def main():
     setup_graceful_interrupt()
+    load_dotenv()
+
+    default_output_dir = os.environ.get("INTUNEDOC_OUTPUT_DIR") or "deliverables"
 
     # If no arguments provided in interactive terminal, launch TUI
     if len(sys.argv) == 1 and sys.stdin.isatty():
@@ -797,7 +812,7 @@ def main():
     run_parser.add_argument("--mock", action="store_true", help="Use mock school district sample data")
     run_parser.add_argument("--unsanitize", action="store_true", help="Do not mask sensitive keys and pre-shared secrets")
     run_parser.add_argument("--audit-days", type=int, default=30, help="Days of admin audit logs to include (default: 30)")
-    run_parser.add_argument("--output-dir", type=str, default="deliverables", help="Base directory where deliverables are stored (default: deliverables)")
+    run_parser.add_argument("--output-dir", type=str, default=default_output_dir, help=f"Base directory where deliverables are stored (default: {default_output_dir})")
     run_parser.add_argument("--no-timestamp", action="store_true", help="Write directly to output directory without creating a timestamped subfolder")
 
     # backup subcommand
@@ -806,7 +821,7 @@ def main():
     backup_parser.add_argument("--mock", action="store_true", help="Backup mock school district sample data")
     backup_parser.add_argument("--unsanitize", action="store_true", default=True, help="Preserve unmasked raw configuration secrets (default: True for 1-to-1 restore)")
     backup_parser.add_argument("--sanitize", action="store_false", dest="unsanitize", help="Mask sensitive keys and pre-shared secrets in backup")
-    backup_parser.add_argument("--output-dir", type=str, default="deliverables", help="Base directory where deliverables are stored (default: deliverables)")
+    backup_parser.add_argument("--output-dir", type=str, default=default_output_dir, help=f"Base directory where deliverables are stored (default: {default_output_dir})")
     backup_parser.add_argument("--no-timestamp", action="store_true", help="Write directly without creating a timestamped subfolder")
 
     # lint-ste subcommand
@@ -815,7 +830,7 @@ def main():
 
     # diff subcommand
     diff_parser = subparsers.add_parser("diff", help="View configuration drift compared to last run or between two runs")
-    diff_parser.add_argument("--output-dir", type=str, default="deliverables", help="Deliverables directory containing run snapshots or raw_json/ backups (default: deliverables)")
+    diff_parser.add_argument("--output-dir", type=str, default=default_output_dir, help=f"Deliverables directory containing run snapshots or raw_json/ backups (default: {default_output_dir})")
     diff_parser.add_argument("--from", dest="from_run", type=str, default=None, help="Baseline backup run directory for offline comparison")
     diff_parser.add_argument("--to", dest="to_run", type=str, default=None, help="Target backup run directory (defaults to latest)")
     diff_parser.add_argument("--html", action="store_true", help="Generate interactive DRIFT_REPORT.html with visual comparisons")
@@ -824,7 +839,7 @@ def main():
 
     # audit subcommand
     audit_parser = subparsers.add_parser("audit", help="Audit tenant security posture and best-practice baseline alignment")
-    audit_parser.add_argument("target_dir", nargs="?", default="deliverables", help="Path to deliverables directory, timestamped run, or backup raw_json/ (default: deliverables)")
+    audit_parser.add_argument("target_dir", nargs="?", default=default_output_dir, help=f"Path to deliverables directory, timestamped run, or backup raw_json/ (default: {default_output_dir})")
     audit_parser.add_argument("--profile", choices=["balanced", "strict-stig"], default="balanced", help="Audit profile (default: balanced)")
     audit_parser.add_argument("--mock", action="store_true", help="Audit mock school district sample data")
     audit_parser.add_argument("--format", choices=["console", "markdown", "html", "pdf", "both"], default="both", help="Output format (default: both)")

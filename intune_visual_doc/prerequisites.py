@@ -14,8 +14,34 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
+
+def load_dotenv(dotenv_path: Optional[str] = None) -> None:
+    """
+    Lightweight .env file loader without third-party dependencies.
+    Reads KEY=VALUE lines and sets os.environ.setdefault(KEY, VALUE).
+    """
+    path = dotenv_path or os.environ.get("INTUNEDOC_ENV_FILE") or os.path.join(os.getcwd(), ".env")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                os.environ.setdefault(k, v)
+    except Exception:
+        pass
+
+
+# Automatically load .env on import if present
+load_dotenv()
+
 console = Console(legacy_windows=False)
-AUTH_DIR = os.path.join(os.getcwd(), ".auth")
+AUTH_DIR = os.environ.get("INTUNEDOC_AUTH_DIR") or os.path.join(os.getcwd(), ".auth")
 CONFIG_FILE = os.path.join(AUTH_DIR, "config.json")
 LIVE_TOKEN_FILE = os.path.join(AUTH_DIR, "live_token.json")
 PORTAL_AUTH_FILE = os.path.join(AUTH_DIR, "playwright_state.json")
@@ -240,8 +266,8 @@ def evaluate_dependencies_and_supersedences() -> Dict[str, Any]:
 
     # 3. Token & Supersedence check (SPN or Live User Token)
     has_spn = bool(
-        (os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret"))
-        and (os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id"))
+        (os.environ.get("AZURE_CLIENT_SECRET") or os.environ.get("INTUNE_CLIENT_SECRET") or cfg.get("azure_client_secret"))
+        and (os.environ.get("AZURE_CLIENT_ID") or os.environ.get("INTUNE_CLIENT_ID") or cfg.get("azure_client_id"))
     )
 
     token_status = "missing"

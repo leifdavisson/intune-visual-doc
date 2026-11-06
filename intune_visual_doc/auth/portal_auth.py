@@ -26,7 +26,7 @@ from ..prerequisites import (
 )
 
 console = Console(legacy_windows=False)
-AUTH_DIR = os.path.join(os.getcwd(), ".auth")
+AUTH_DIR = os.environ.get("INTUNEDOC_AUTH_DIR") or os.path.join(os.getcwd(), ".auth")
 PORTAL_AUTH_FILE = os.path.join(AUTH_DIR, "playwright_state.json")
 LIVE_TOKEN_FILE = os.path.join(AUTH_DIR, "live_token.json")
 INTUNE_PORTAL_URL = "https://intune.microsoft.com"

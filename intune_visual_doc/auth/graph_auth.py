@@ -36,9 +36,26 @@ def get_graph_token(
     4. Device Code Flow fallback.
     """
     cfg = load_config()
-    c_id = client_id or os.environ.get("AZURE_CLIENT_ID") or cfg.get("azure_client_id") or DEFAULT_CLIENT_ID
-    t_id = tenant_id or os.environ.get("AZURE_TENANT_ID") or cfg.get("azure_tenant_id") or "common"
-    secret = client_secret or os.environ.get("AZURE_CLIENT_SECRET") or cfg.get("azure_client_secret")
+    c_id = (
+        client_id
+        or os.environ.get("AZURE_CLIENT_ID")
+        or os.environ.get("INTUNE_CLIENT_ID")
+        or cfg.get("azure_client_id")
+        or DEFAULT_CLIENT_ID
+    )
+    t_id = (
+        tenant_id
+        or os.environ.get("AZURE_TENANT_ID")
+        or os.environ.get("INTUNE_TENANT_ID")
+        or cfg.get("azure_tenant_id")
+        or "common"
+    )
+    secret = (
+        client_secret
+        or os.environ.get("AZURE_CLIENT_SECRET")
+        or os.environ.get("INTUNE_CLIENT_SECRET")
+        or cfg.get("azure_client_secret")
+    )
     scope_list = scopes or DEFAULT_SCOPES
     authority = f"https://login.microsoftonline.com/{t_id}"
 

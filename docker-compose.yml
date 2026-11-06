@@ -1,0 +1,22 @@
+# ==============================================================================
+# docker-compose.yml — intune-visual-doc
+# ==============================================================================
+services:
+  intunedoc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: intune-visual-doc:latest
+    container_name: intunedoc
+    volumes:
+      - ./deliverables:/app/deliverables
+      - ./.auth:/app/.auth
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - INTUNEDOC_OUTPUT_DIR=/app/deliverables
+      - INTUNEDOC_AUTH_DIR=/app/.auth
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}

@@ -8,7 +8,7 @@ This document is licensed under **GNU AGPLv3**.
 
 ## 1. Microsoft Graph API Collector Gaps
 
-The current collector in [`intune_visual_doc/graph/collectors.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/graph/collectors.py) fetches core policies.
+The current collector in [`intune_visual_doc/graph/collectors.py`](../intune_visual_doc/graph/collectors.py) fetches core policies.
 It omits several major enterprise Microsoft Intune workloads.
 
 | Intune Workload | Target Graph API Endpoint | Priority | Technical Description |
@@ -28,7 +28,7 @@ It omits several major enterprise Microsoft Intune workloads.
 
 ## 2. Generator Engine & Deliverable Quality Fixes
 
-These items target [`intune_visual_doc/generator/engine.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/generator/engine.py) and related modules.
+These items target [`intune_visual_doc/generator/engine.py`](../intune_visual_doc/generator/engine.py) and related modules.
 
 ### A. Audit Log Date Filtering Fallback
 - **Problem**: When Microsoft Graph denies `$filter` or `$orderby`, pagination falls back to unconstrained `/deviceManagement/auditEvents`.
@@ -69,7 +69,7 @@ These items target [`intune_visual_doc/generator/engine.py`](file:///home/leifda
 ## 3. Completed Architecture Enhancements
 
 ### Security Posture & Best-Practice Audit (ADR 0014) — Completed
-- Added declarative audit engine evaluating 6 Golden Baseline domains ([`intune_visual_doc/audit/rules.py`](file:///home/leifdavisson/intune_docs/intune_visual_doc/audit/rules.py)).
+- Added declarative audit engine evaluating 6 Golden Baseline domains ([`intune_visual_doc/audit/rules.py`](../intune_visual_doc/audit/rules.py)).
 - Implemented dual audit profiles (`--profile balanced` [default] and `--profile strict-stig`).
 - Added partial backup tolerance (`⚪ Scope Omitted` for un-exported workloads).
 - Embedded 4-point legal safe harbor header and non-prescriptive field context in `AUDIT_RECOMMENDATIONS.md`.
