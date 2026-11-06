@@ -168,6 +168,14 @@ docker compose run --rm intunedoc audit --mock
 docker compose run --rm intunedoc run
 ```
 
+#### Option C: Windows Automated PowerShell Bootstrap
+
+Run on a clean Windows 10/11 workstation to install Git, Python, virtual environment, and Playwright automatically:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\Install-IntuneVisualDoc.ps1
+```
+
 ### 2. Environment Variables & Authentication
 
 Configure your Service Principal in `.env` or inject variables at runtime:
